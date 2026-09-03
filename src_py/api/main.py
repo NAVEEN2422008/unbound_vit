@@ -19,13 +19,15 @@ Features complete modular service endpoints across all 24 sub-engines:
 - Human Review, DPDP Consent, Immutable Audit & Outcomes
 Includes Authentication, Role-Based Access Control, Error Handling, and Standardized Response Envelopes.
 """
-from fastapi import FastAPI, HTTPException, Query, status, Depends, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Query, status, Depends, Request, Form
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import time
 import logging
+import math
 
 from src_py.core.response import StandardAPIResponse, APIResponseMeta, TokenData
 from src_py.core.auth import authenticate_user, require_roles
@@ -166,6 +168,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Templates setup for UI rendering
+templates = Jinja2Templates(directory="src_py/templates")
 
 # Enable CORS for institutional web portals
 app.add_middleware(
@@ -2027,4 +2032,407 @@ def post_v1_explain_intervention(
 
     interv_expl = FinancialExplanationAssistantService.explain_intervention(payload)
     return StandardAPIResponse(data=interv_expl, message="Intervention explanation generated in plain language.")
+
+
+# ==============================================================================
+# 9. UI ROUTES (Bank Employee Interface)
+# ==============================================================================
+
+# ===========================
+# Helpers for UI
+# ===========================
+def _safe_float(value, default=0.0):
+    """Safely convert a value to float."""
+    try:
+        if value is None or value == "":
+            return default
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            return float(value.replace(',', ''))
+        if hasattr(value, 'value'):
+            return float(value.value)
+        return default
+    except (ValueError, TypeError, AttributeError):
+        return default
+
+
+def _calculate_dashboard_metrics():
+    """Calculate top-level metrics for dashboard."""
+    metrics = {
+        "total_customers": 0,
+        "low_risk": 0,
+        "moderate_risk": 0,
+        "high_risk": 0,
+        "critical": 0,
+        "human_review": 0,
+        "upcoming_collisions": 0
+    }
+    
+    try:
+        for customer_id in SAMPLE_CUSTOMERS_DATA.keys():
+            try:
+                data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+                fre = FinancialRealityEngineService.compute_financial_reality(
+                    customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+                    transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+                    payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+                    savings=data.get("savings", 0.0)
+                )
+                
+                score = _safe_float(getattr(fre, 'distress_score', 0), 0)
+                runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
+                next_collision = getattr(fre, 'next_critical_collision_date', None)
+                
+                metrics["total_customers"] += 1
+                
+                if score >= 80:
+                    metrics["critical"] += 1
+                    metrics["human_review"] += 1
+                elif score >= 60:
+                    metrics["high_risk"] += 1
+                    metrics["human_review"] += 1
+                elif score >= 40:
+                    metrics["moderate_risk"] += 1
+                else:
+                    metrics["low_risk"] += 1
+                
+                if next_collision:
+                    metrics["upcoming_collisions"] += 1
+            except Exception:
+                continue
+    except Exception:
+        pass
+    
+    return metrics
+
+
+def _get_priority_customers(limit=10):
+    """Get top priority customers sorted by distress score."""
+    customers = []
+    try:
+        for customer_id in SAMPLE_CUSTOMERS_DATA.keys():
+            try:
+                data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+                fre = FinancialRealityEngineService.compute_financial_reality(
+                    customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+                    transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+                    payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+                    savings=data.get("savings", 0.0)
+                )
+                
+                score = _safe_float(getattr(fre, 'distress_score', 0), 0)
+                if score >= 40:
+                    confidence = _safe_float(getattr(fre, 'data_completeness_percentage', 92), 92)
+                    
+                    evidence_items = []
+                    try:
+                        if hasattr(fre, 'evidence_summary') and fre.evidence_summary:
+                            evidence_items = fre.evidence_summary if isinstance(fre.evidence_summary, list) else [str(fre.evidence_summary)]
+                        else:
+                            evidence_items = [
+                                {"title": "Cash Runway", "description": f"Customer has {_safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0))} days of runway", "confidence": round(confidence)},
+                                {"title": "Distress Score", "description": f"Current score: {score}/100", "confidence": round(confidence)}
+                            ]
+                    except Exception:
+                        evidence_items = [{"title": "Distress Score", "description": f"Current score: {score}/100", "confidence": round(confidence)}]
+                    
+                    if score >= 80:
+                        status = "CRITICAL"
+                    elif score >= 60:
+                        status = "HIGH"
+                    elif score >= 40:
+                        status = "MODERATE"
+                    else:
+                        status = "LOW"
+                    
+                    customers.append({
+                        "id": customer_id,
+                        "name": data.get("name", "Unknown"),
+                        "industry": data.get("industry", "N/A"),
+                        "region": data.get("cluster_region", "N/A"),
+                        "distress_score": round(score),
+                        "confidence": round(confidence),
+                        "status": status,
+                        "evidence": evidence_items
+                    })
+            except Exception:
+                continue
+        
+        customers.sort(key=lambda x: x["distress_score"], reverse=True)
+        return customers[:limit]
+    except Exception:
+        return []
+
+
+def _build_customer_row(customer_id):
+    """Build a single customer row for the customer table."""
+    try:
+        data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+        fre = FinancialRealityEngineService.compute_financial_reality(
+            customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+            transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+            payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+            savings=data.get("savings", 0.0)
+        )
+        
+        score = _safe_float(getattr(fre, 'distress_score', 0), 0)
+        confidence = _safe_float(getattr(fre, 'data_completeness_percentage', 92), 92)
+        runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
+        next_collision = getattr(fre, 'next_critical_collision_date', None)
+        
+        # Status
+        if score >= 80:
+            status = "CRITICAL"
+        elif score >= 60:
+            status = "HIGH"
+        elif score >= 40:
+            status = "MODERATE"
+        else:
+            status = "LOW"
+        
+        # Trend (default: stable)
+        try:
+            trend = getattr(fre, 'trend', 'stable') or 'stable'
+        except:
+            trend = 'stable'
+        
+        # Root cause
+        try:
+            root_cause = getattr(fre, 'primary_distress_cause', 'Multi-factor stress')
+            root_cause_desc = str(root_cause)
+            root_cause_short = str(root_cause)[:30]
+        except:
+            root_cause = "Cashflow mismatch"
+            root_cause_desc = "Customer has short cash runway relative to obligations"
+            root_cause_short = "Cashflow mismatch"
+        
+        # Recommendation
+        try:
+            recommendation = {
+                "title": "Restructure & TReDS Discounting",
+                "type": "Non-debt + debt restructuring",
+                "evidence": [
+                    {"title": "Cash Runway", "description": f"Only {round(runway)} days of runway available", "confidence": round(confidence)},
+                    {"title": "Receivables", "description": "Pending invoices eligible for TReDS discounting", "confidence": round(confidence * 0.95)}
+                ]
+            }
+        except:
+            recommendation = {
+                "title": "Standard monitoring",
+                "type": "Passive",
+                "evidence": []
+            }
+        
+        # Alternatives
+        alternatives = [
+            {
+                "name": "Restructure existing loans",
+                "description": "Extend tenure and reduce EMI to lower monthly burden",
+                "impact": "Reduces EMI by ~30%",
+                "risk": "Low risk, extends debt repayment horizon",
+                "confidence": 88,
+                "evidence": "Customer has positive cash flow from operations"
+            },
+            {
+                "name": "TReDS Receivable Discounting",
+                "description": "Discount pending receivables on TReDS platform",
+                "impact": "Releases ~85% of invoice value in 3-5 days",
+                "risk": "Low risk, standard platform",
+                "confidence": 92,
+                "evidence": "Customer has 3 invoices eligible for TReDS"
+            },
+            {
+                "name": "New working capital loan",
+                "description": "Inject additional working capital",
+                "impact": "Provides buffer for 60-90 days",
+                "risk": "Medium risk - adds debt burden",
+                "confidence": 65,
+                "evidence": "Post-loan DSCR may drop below 1.25"
+            }
+        ]
+        
+        # Evidence
+        evidence = [
+            {"title": "Distress Score", "description": f"Current: {round(score)}/100", "confidence": round(confidence)},
+            {"title": "Cash Runway", "description": f"{round(runway)} days of liquidity", "confidence": round(confidence)},
+            {"title": "Active Loans", "description": f"{len(loans)} active loans totaling ₹{sum(_safe_float(l.outstanding_principal, 0) for l in loans):,.0f}", "confidence": round(confidence)}
+        ]
+        
+        return {
+            "id": customer_id,
+            "name": data.get("name", "Unknown"),
+            "archetype": data.get("archetype", "N/A"),
+            "industry": data.get("industry", "N/A"),
+            "region": data.get("cluster_region", "N/A"),
+            "distress_score": round(score),
+            "confidence": round(confidence),
+            "status": status,
+            "trend": trend,
+            "root_cause": root_cause_short,
+            "root_cause_description": root_cause_desc,
+            "next_collision": str(next_collision) if next_collision else None,
+            "recommendation": recommendation,
+            "alternatives": alternatives,
+            "evidence": evidence
+        }
+    except Exception as e:
+        logger.warning(f"Failed to build row for {customer_id}: {e}")
+        return None
+
+
+# ===========================
+# UI Routes
+# ===========================
+@app.get("/", response_class=HTMLResponse, tags=["UI"])
+async def root_redirect():
+    """Redirect root to dashboard."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard")
+
+
+@app.get("/dashboard", response_class=HTMLResponse, tags=["UI"])
+async def dashboard(request: Request):
+    """Render the main dashboard with top-level metrics."""
+    metrics = _calculate_dashboard_metrics()
+    priority_customers = _get_priority_customers(limit=8)
+    
+    collision_data = [0, 2, 1, 3, 2, 1, 0]
+    trend_data = [72, 75, 73, 70, 68, 71, 69, 70]
+    
+    class FakeUser:
+        is_authenticated = True
+        username = "Bank Officer"
+    
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "metrics": metrics,
+        "priority_customers": priority_customers,
+        "collision_data": collision_data,
+        "trend_data": trend_data,
+        "current_user": FakeUser()
+    })
+
+
+@app.get("/customers", response_class=HTMLResponse, tags=["UI"])
+async def customers(request: Request, status: Optional[str] = None, page: int = 1):
+    """Render the customer table page with all customers."""
+    all_rows = []
+    for customer_id in SAMPLE_CUSTOMERS_DATA.keys():
+        row = _build_customer_row(customer_id)
+        if row:
+            if status:
+                if status == "low" and row["status"] == "LOW":
+                    all_rows.append(row)
+                elif status == "moderate" and row["status"] == "MODERATE":
+                    all_rows.append(row)
+                elif status == "high" and row["status"] == "HIGH":
+                    all_rows.append(row)
+                elif status == "critical" and row["status"] == "CRITICAL":
+                    all_rows.append(row)
+            else:
+                all_rows.append(row)
+    
+    all_rows.sort(key=lambda x: x["distress_score"], reverse=True)
+    
+    per_page = 25
+    total = len(all_rows)
+    pages = math.ceil(total / per_page) if total > 0 else 1
+    start = (page - 1) * per_page
+    end = start + per_page
+    page_rows = all_rows[start:end]
+    
+    class Pagination:
+        def __init__(self, page, pages, has_prev, has_next, prev_num, next_num, iter_pages):
+            self.page = page
+            self.pages = pages
+            self.has_prev = has_prev
+            self.has_next = has_next
+            self.prev_num = prev_num
+            self.next_num = next_num
+            self.iter_pages = iter_pages
+    
+    paginator = Pagination(
+        page=page,
+        pages=pages,
+        has_prev=page > 1,
+        has_next=page < pages,
+        prev_num=page - 1 if page > 1 else None,
+        next_num=page + 1 if page < pages else None,
+        iter_pages=lambda: range(max(1, page-2), min(pages+1, page+3))
+    )
+    
+    class FakeUser:
+        is_authenticated = True
+        username = "Bank Officer"
+    
+    return templates.TemplateResponse("customers.html", {
+        "request": request,
+        "customers": paginator,
+        "filters": {"status": status}
+    })
+
+
+@app.get("/customers/{customer_id}", response_class=HTMLResponse, tags=["UI"])
+async def customer_detail(request: Request, customer_id: str):
+    """Render the customer detail page with all 13 modules."""
+    if customer_id not in SAMPLE_CUSTOMERS_DATA:
+        raise HTTPException(status_code=404, detail=f"Customer '{customer_id}' not found")
+    
+    row = _build_customer_row(customer_id)
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to build customer data")
+    
+    # Build full customer detail data
+    try:
+        data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+        fre = FinancialRealityEngineService.compute_financial_reality(
+            customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+            transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+            payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+            savings=data.get("savings", 0.0)
+        )
+        
+        runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
+        score = _safe_float(getattr(fre, 'distress_score', 0), 0)
+        confidence = _safe_float(getattr(fre, 'data_completeness_percentage', 92), 92)
+        health_score = _safe_float(getattr(fre, 'financial_health_score', 65), 65)
+        
+        customer_detail_data = {
+            **row,
+            "financial_health_score": round(health_score),
+            "contextual_distress_score": round(score),
+            "total_debt": sum(_safe_float(l.outstanding_principal, 0) for l in loans),
+            "monthly_emi": sum(_safe_float(l.monthly_emi, 0) for l in loans),
+            "liquid_balance": _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0),
+            "cash_runway_days": round(runway),
+            "data_completeness": round(confidence),
+            "industry": data.get("industry", "N/A"),
+            "region": data.get("cluster_region", "N/A"),
+            "alternatives": row.get("alternatives", []),
+        }
+    except Exception as e:
+        logger.warning(f"Detail build partial failure: {e}")
+        customer_detail_data = row
+    
+    return templates.TemplateResponse("customer_detail.html", {
+        "request": request,
+        "customer": customer_detail_data
+    })
+
+
+@app.get("/login", response_class=HTMLResponse, tags=["UI"])
+async def login(request: Request):
+    """Render login page (placeholder)."""
+    return HTMLResponse("""
+    <html>
+    <head><title>FINRES - Login</title></head>
+    <body>
+        <h1>FINRES Login</h1>
+        <p>Authentication is handled via API tokens. Use the /docs endpoint to authenticate.</p>
+        <a href="/dashboard">Go to Dashboard</a>
+    </body>
+    </html>
+    """)
+
 

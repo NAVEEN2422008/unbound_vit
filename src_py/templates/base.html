@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FINRES - Financial Resilience Engine{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --success: #198754;
+            --info: #0dcaf0;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray-600: #6c757d;
+        }
+        
+        .navbar {
+            background-color: #0d6efd;
+        }
+        
+        .navbar-brand, .nav-link {
+            color: white !important;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+        
+        .metric-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .status-low { background-color: #d1e7dd; color: #0f5132; }
+        .status-moderate { background-color: #fff3cd; color: #664d03; }
+        .status-high { background-color: #f8d7da; color: #842029; }
+        .status-critical { background-color: #f8d7da; color: #842029; }
+        .status-review { background-color: #d1ecf1; color: #0c5460; }
+        .status-safe { background-color: #d1e7dd; color: #0f5132; }
+        .status-warning { background-color: #fff3cd; color: #664d03; }
+        .status-danger { background-color: #f8d7da; color: #842029; }
+        
+        .table {
+            margin-bottom: 0;
+        }
+        
+        .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        .table td {
+            vertical-align: middle;
+            padding: 1rem;
+        }
+        
+        .clickable {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .clickable:hover {
+            background-color: rgba(0, 0, 0, 0.025);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 1.5rem;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .evidence-badge {
+            background-color: #e9ecef;
+            color: #495057;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .evidence-badge:hover {
+            background-color: #dee2e6;
+            transform: scale(1.05);
+        }
+        
+        .confidence-meter {
+            height: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background-color: var(--primary);
+            transition: width 0.5s ease;
+        }
+        
+        .evidence-modal .modal-content {
+            border-radius: 15px;
+            border: none;
+        }
+        
+        .evidence-modal .modal-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+        }
+        
+        .recommendation-card {
+            border-left: 4px solid var(--primary);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 0 10px 10px 0;
+        }
+        
+        .recommendation-card h6 {
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .why-badge {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .evidence-badge-small {
+            background-color: #fff3e0;
+            color: #bf360c;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .confidence-badge {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .section-content {
+            padding: 1rem 0;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray-600);
+        }
+        
+        .no-data i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .progress-section {
+            margin: 1.5rem 0;
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            border-radius: 5px;
+            background-color: #e9ecef;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.8s ease;
+        }
+        
+        .alert-dismissible {
+            padding: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .section-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+            
+            .metric-card {
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">FINRES</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bsTarget="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/' or request.path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path.startswith('/customers') %}active{% endif %}" href="{{ url_for('customers') }}">Customers</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person"></i>
+                            {{ current_user.username if current_user.is_authenticated else 'Sign In' }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            {% if current_user.is_authenticated %}
+                                <li><a class="dropdown-item" href="{{ url_for('profile') }}">Profile</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('logout') }}">Sign Out</a></li>
+                            {% else %}
+                                <li><a class="dropdown-item" href="{{ url_for('login') }}">Sign In</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <div class="modal fade" id="evidenceModal" tabindex="-1" aria-labelledby="evidenceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="evidenceModalLabel">Evidence Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="evidenceModalBody">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="alternativesModal" tabindex="-1" aria-labelledby="alternativesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="alternativesModalLabel">Simulated Alternatives</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="alternativesModalBody">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // Evidence modal handler
+        function showEvidence(title, evidenceData) {
+            const modalTitle = document.getElementById('evidenceModalLabel');
+            const modalBody = document.getElementById('evidenceModalBody');
+            
+            modalTitle.textContent = title;
+            
+            if (typeof evidenceData === 'string') {
+                modalBody.innerHTML = `<p>${evidenceData}</p>`;
+            } else if (Array.isArray(evidenceData)) {
+                modalBody.innerHTML = evidenceData.map(item => 
+                    `<div class="mb-3 p-3 border rounded">
+                        <h6>${item.title || 'Evidence Item'}</h6>
+                        <p>${item.description || item.details || JSON.stringify(item)}</p>
+                        ${item.confidence ? `<small class="text-muted">Confidence: ${item.confidence}%</small>` : ''}
+                    </div>`).join('');
+            } else {
+                modalBody.innerHTML = `<pre>${JSON.stringify(evidenceData, null, 2)}</pre>`;
+            }
+            
+            const evidenceModal = new bootstrap.Modal(document.getElementById('evidenceModal'));
+            evidenceModal.show();
+        }
+        
+        // Alternatives modal handler
+        function showAlternatives(title, alternativesData) {
+            const modalTitle = document.getElementById('alternativesModalLabel');
+            const modalBody = document.getElementById('alternativesModalBody');
+            
+            modalTitle.textContent = title;
+            
+            if (Array.isArray(alternativesData)) {
+                modalBody.innerHTML = alternativesData.map((alt, index) => 
+                    `<div class="mb-4 p-3 border rounded">
+                        <h6>Alternative ${index + 1}: ${alt.name || alt.title || 'Option'}</h6>
+                        ${alt.description ? `<p>${alt.description}</p>` : ''}
+                        ${alt.impact ? `<div class="mb-2"><strong>Impact:</strong> ${alt.impact}</div>` : ''}
+                        ${alt.risk ? `<div class="mb-2"><strong>Risk:</strong> ${alt.risk}</div>` : ''}
+                        ${alt.confidence !== undefined ? `<div class="mb-2"><small class="text-muted">Confidence: ${alt.confidence}%</small></div>` : ''}
+                        ${alt.evidence ? `<div class="mb-2"><small class="text-muted">Evidence: ${Array.isArray(alt.evidence) ? alt.evidence.join(', ') : alt.evidence}</small></div>` : ''}
+                    </div>`).join('');
+            } else {
+                modalBody.innerHTML = `<pre>${JSON.stringify(alternativesData, null, 2)}</pre>`;
+            }
+            
+            const alternativesModal = new bootstrap.Modal(document.getElementById('alternativesModal'));
+            alternativesModal.show();
+        }
+        
+        // Auto-dismiss alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                setTimeout(() => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

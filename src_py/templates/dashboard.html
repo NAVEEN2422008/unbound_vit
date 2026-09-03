@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}FINRES - Dashboard{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h1 class="section-title">
+        <i class="bi bi-speedometer2"></i> Dashboard
+    </h1>
+    <span class="badge bg-primary fs-6">FINRES Platform</span>
+</div>
+
+<div class="row g-4 mb-5">
+    <div class="col-md-2 col-sm-4">
+        <div class="card metric-card">
+            <i class="bi bi-people-fill text-primary" style="font-size: 2rem;"></i>
+            <div class="metric-value text-primary">{{ metrics.total_customers }}</div>
+            <div class="metric-label">Total Customers</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card metric-card">
+            <i class="bi bi-shield-check text-success" style="font-size: 2rem;"></i>
+            <div class="metric-value text-success">{{ metrics.low_risk }}</div>
+            <div class="metric-label">Low Risk</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card metric-card">
+            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
+            <div class="metric-value text-warning">{{ metrics.moderate_risk }}</div>
+            <div class="metric-label">Moderate Risk</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card metric-card">
+            <i class="bi bi-exclamation-circle text-danger" style="font-size: 2rem;"></i>
+            <div class="metric-value text-danger">{{ metrics.high_risk }}</div>
+            <div class="metric-label">High Risk</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card metric-card">
+            <i class="bi bi-fire text-danger" style="font-size: 2rem;"></i>
+            <div class="metric-value text-danger">{{ metrics.critical }}</div>
+            <div class="metric-label">Critical</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card metric-card">
+            <i class="bi bi-person-badge text-info" style="font-size: 2rem;"></i>
+            <div class="metric-value text-info">{{ metrics.human_review }}</div>
+            <div class="metric-label">Human Review</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card metric-card">
+            <i class="bi bi-lightning-charge-fill text-warning" style="font-size: 2rem;"></i>
+            <div class="metric-value text-warning">{{ metrics.upcoming_collisions }}</div>
+            <div class="metric-label">Upcoming Collisions</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-fill"></i> Risk Distribution
+            </div>
+            <div class="card-body">
+                <canvas id="riskChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> Cash-Flow Collisions (7 Days)
+            </div>
+            <div class="card-body">
+                <canvas id="collisionChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-graph-arrow-up"></i> Financial Health Trend
+            </div>
+            <div class="card-body">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-people"></i> Customer Risk Overview - Top Priority
+            </div>
+            <div class="card-body">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Industry</th>
+                            <th>Region</th>
+                            <th>Distress Score</th>
+                            <th>Confidence</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for customer in priority_customers %}
+                        <tr>
+                            <td>
+                                <strong>{{ customer.name }}</strong><br>
+                                <small class="text-muted">{{ customer.id }}</small>
+                            </td>
+                            <td>{{ customer.industry or 'N/A' }}</td>
+                            <td>{{ customer.region or 'N/A' }}</td>
+                            <td>
+                                <span class="clickable fw-bold" 
+                                      onclick="showEvidence('Evidence - {{ customer.name }}', {{ customer.evidence | tojson }})">
+                                    {{ customer.distress_score }}/100
+                                </span>
+                            </td>
+                            <td>
+                                <div class="progress-section" style="width: 100px; display: inline-block; vertical-align: middle;">
+                                    <div class="confidence-meter">
+                                        <div class="confidence-fill" style="width: {{ customer.confidence }}%; 
+                                            background-color: {% if customer.confidence >= 80 %} #198754 {% elif customer.confidence >= 50 %} #ffc107 {% else %} #dc3545 {% endif %}">
+                                        </div>
+                                    </div>
+                                    <small>{{ customer.confidence }}%</small>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="status-badge status-{{ customer.status | lower }}">{{ customer.status }}</span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const riskCtx = document.getElementById('riskChart').getContext('2d');
+        new Chart(riskCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Low Risk', 'Moderate', 'High Risk', 'Critical'],
+                datasets: [{
+                    data: [{{ metrics.low_risk }}, {{ metrics.moderate_risk }}, {{ metrics.high_risk }}, {{ metrics.critical }}],
+                    backgroundColor: ['#198754', '#ffc107', '#fd7e14', '#dc3545'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        const collisionCtx = document.getElementById('collisionChart').getContext('2d');
+        new Chart(collisionCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Collisions',
+                    data: {{ collision_data | tojson }},
+                    backgroundColor: '#dc3545',
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
+                datasets: [{
+                    label: 'Avg Financial Health',
+                    data: {{ trend_data | tojson }},
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: false } }
+            }
+        });
+    });
+</script>
+{% endblock %}

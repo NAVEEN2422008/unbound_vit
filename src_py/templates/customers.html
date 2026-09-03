@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}FINRES - Customers{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h1 class="section-title">
+        <i class="bi bi-people"></i> Customer Portfolio
+    </h1>
+    <div class="btn-group" role="group">
+        <a href="{{ url_for('customers') }}" class="btn btn-outline-primary {% if not filters.status %}active{% endif %}">All</a>
+        <a href="{{ url_for('customers', status='low') }}" class="btn btn-outline-primary {% if filters.status == 'low' %}active{% endif %}">Low Risk</a>
+        <a href="{{ url_for('customers', status='moderate') }}" class="btn btn-outline-primary {% if filters.status == 'moderate' %}active{% endif %}">Moderate Risk</a>
+        <a href="{{ url_for('customers', status='high') }}" class="btn btn-outline-primary {% if filters.status == 'high' %}active{% endif %}">High Risk</a>
+        <a href="{{ url_for('customers', status='critical') }}" class="btn btn-outline-primary {% if filters.status == 'critical' %}active{% endif %}">Critical</a>
+    </div>
+    
+    <div class="input-group input-group-sm ms-3" style="width: 250px;">
+        <input type="text" class="form-control" id="searchInput" placeholder="Search customers..." aria-label="Search">
+        <button class="btn btn-outline-secondary" type="button" id="searchBtn">
+            <i class="bi bi-search"></i>
+        </button>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Customer</th>
+                <th>Type</th>
+                <th>Industry</th>
+                <th>Region</th>
+                <th>Distress Score</th>
+                <th>Confidence</th>
+                <th>Trend</th>
+                <th>Primary Cause</th>
+                <th>Next Collision</th>
+                <th>Recommended Action</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for customer in customers %}
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="ms-2">
+                            <strong>{{ customer.name }}</strong><br>
+                            <small class="text-muted">{{ customer.id }}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-secondary">{{ customer.archetype or 'N/A' }}</span>
+                </td>
+                <td>{{ customer.industry or 'N/A' }}</td>
+                <td>{{ customer.region or 'N/A' }}</td>
+                <td>
+                    <span class="clickable fw-bold" 
+                          onclick="showEvidence('Evidence - {{ customer.name }}', {{ customer.evidence | tojson }})">
+                        {{ customer.distress_score }}/100
+                    </span>
+                </td>
+                <td>
+                    <div class="progress-section" style="width: 80px;">
+                        <div class="confidence-meter">
+                            <div class="confidence-fill" style="width: {{ customer.confidence }}%; 
+                                background-color: {% if customer.confidence >= 80 %} #198754 {% elif customer.confidence >= 50 %} #ffc107 {% else %} #dc3545 {% endif %}">
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ customer.confidence }}%</small>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-{{ 'success' if customer.trend == 'improving' else 'warning' if customer.trend == 'stable' else 'danger' }}">
+                        {{ customer.trend | title }}
+                    </span>
+                </td>
+                <td title="{{ customer.root_cause_description }}">
+                    {{ customer.root_cause | truncate(20) }}
+                </td>
+                <td>
+                    {% if customer.next_collision %}
+                        <span class="badge bg-danger">Collision: {{ customer.next_collision }}</span>
+                    {% else %}
+                        <span class="badge bg-success">No Collision</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="recommendation-card">
+                        <strong>{{ customer.recommendation.title }}</strong><br>
+                        <small class="text-muted">{{ customer.recommendation.type }}</small>
+                    </div>
+                </td>
+                <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" 
+                                onclick="showEvidence('Recommendation Evidence - {{ customer.name }}', {{ customer.recommendation.evidence | tojson }})">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-success"
+                                onclick="showAlternatives('Simulated Alternatives - {{ customer.name }}', {{ customer.alternatives | tojson }})">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" class="btn btn-outline-info">
+                            <i class="bi bi-info-circle"></i>
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        {% if customers.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('customers', page=customers.prev_num, status=filters.status) }}" aria-label="Previous">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link" aria-hidden="true">&laquo;</span>
+        </li>
+        {% endif %}
+        
+        {% for page_num in customers.iter_pages() %}
+        {% if page_num %}
+            {% if customers.page == page_num %}
+            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+            {% else %}
+            <li class="page-item"><a class="page-link" href="{{ url_for('customers', page=page_num, status=filters.status) }}">{{ page_num }}</a></li>
+            {% endif %}
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+        {% endfor %}
+        
+        {% if customers.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('customers', page=customers.next_num, status=filters.status) }}" aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link" aria-hidden="true">&raquo;</span>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        
+        function performSearch() {
+            const searchTerm = searchInput.value.trim().toLowerCase();
+            const rows = document.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        }
+        
+        searchBtn.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+    });
+</script>
+{% endblock %}
