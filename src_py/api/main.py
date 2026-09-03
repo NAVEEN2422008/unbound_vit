@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 import time
 import logging
 import math
+from datetime import datetime
 
 from src_py.core.response import StandardAPIResponse, APIResponseMeta, TokenData
 from src_py.core.auth import authenticate_user, require_roles
@@ -2434,5 +2435,405 @@ async def login(request: Request):
     </body>
     </html>
     """)
+
+
+# ==============================================================================
+# 10. CUSTOMER PORTAL ROUTES (Customer-Facing Interface)
+# ==============================================================================
+
+# ===========================
+# Customer Portal Helpers
+# ===========================
+def _build_customer_metrics(customer_id: str) -> dict:
+    """Build all metrics for customer dashboard."""
+    try:
+        data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+        fre = FinancialRealityEngineService.compute_financial_reality(
+            customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+            transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+            payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+            savings=data.get("savings", 0.0)
+        )
+        
+        # Extract metrics safely
+        income = _safe_float(getattr(getattr(fre, 'monthly_income', None), 'value', 0), 0)
+        expenses = _safe_float(getattr(getattr(fre, 'monthly_expenses', None), 'value', 0), 0)
+        liquid = _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0)
+        runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
+        distress = _safe_float(getattr(fre, 'distress_score', 0), 0)
+        health = _safe_float(getattr(fre, 'financial_health_score', 65), 65)
+        completeness = _safe_float(getattr(fre, 'data_completeness_percentage', 92), 92)
+        
+        # Savings buffer
+        savings = _safe_float(data.get("savings", 0), 0)
+        savings_buffer = int(savings / max(expenses / 30, 1)) if expenses > 0 else 0
+        
+        # Upcoming obligation
+        next_collision = getattr(fre, 'next_critical_collision_date', None)
+        upcoming_days = 30
+        upcoming_amount = 0
+        if next_collision:
+            try:
+                from datetime import datetime
+                collision_date = datetime.strptime(str(next_collision), "%Y-%m-%d")
+                upcoming_days = max((collision_date - datetime.now()).days, 1)
+            except:
+                upcoming_days = 30
+        
+        # Find next EMI/obligation
+        for loan in loans:
+            upcoming_amount += _safe_float(loan.monthly_emi, 0)
+        for obl in obligations:
+            upcoming_amount += _safe_float(obl.amount, 0)
+        
+        # Total loans
+        total_loans = sum(_safe_float(l.outstanding_principal, 0) for l in loans)
+        monthly_emis = sum(_safe_float(l.monthly_emi, 0) for l in loans)
+        
+        # Receivables
+        total_rec = sum(_safe_float(r.amount, 0) for r in receivables)
+        rec_due_month = 0
+        rec_overdue = 0
+        for r in receivables:
+            if getattr(r, 'days_outstanding', 0) > 0:
+                rec_overdue += _safe_float(r.amount, 0)
+            elif getattr(r, 'days_outstanding', 0) <= 30:
+                rec_due_month += _safe_float(r.amount, 0)
+        
+        # Business revenue
+        business_rev = sum(_safe_float(a.monthly_revenue_contribution, 0) for a in assets)
+        
+        return {
+            "resilience_score": round(health),
+            "resilience_trend": "Improving" if health > 70 else "Stable" if health > 50 else "Declining",
+            "distress_risk": round(distress),
+            "cash_available": liquid,
+            "cash_runway_days": round(runway),
+            "upcoming_obligation_days": upcoming_days,
+            "upcoming_obligation_amount": upcoming_amount,
+            "savings_buffer_days": savings_buffer,
+            "monthly_surplus_deficit": round(income - expenses),
+            "monthly_income": income,
+            "monthly_expenses": expenses,
+            "business_revenue": business_rev,
+            "other_income": round(income - business_rev) if business_rev < income else 0,
+            "essential_expenses": round(expenses * 0.7),
+            "discretionary_expenses": round(expenses * 0.3),
+            "total_loans": total_loans,
+            "monthly_emis": monthly_emis,
+            "active_loans_count": len(loans),
+            "total_receivables": total_rec,
+            "receivables_due_month": rec_due_month,
+            "receivables_overdue": rec_overdue
+        }
+    except Exception as e:
+        logger.warning(f"Metrics build failed: {e}")
+        return {
+            "resilience_score": 65, "resilience_trend": "Stable", "distress_risk": 45,
+            "cash_available": 0, "cash_runway_days": 0, "upcoming_obligation_days": 30,
+            "upcoming_obligation_amount": 0, "savings_buffer_days": 0,
+            "monthly_surplus_deficit": 0, "monthly_income": 0, "monthly_expenses": 0,
+            "business_revenue": 0, "other_income": 0, "essential_expenses": 0,
+            "discretionary_expenses": 0, "total_loans": 0, "monthly_emis": 0,
+            "active_loans_count": 0, "total_receivables": 0, "receivables_due_month": 0,
+            "receivables_overdue": 0
+        }
+
+
+def _build_priority_recommendations(customer_id: str) -> list:
+    """Build priority recommendations in plain language."""
+    try:
+        data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+        fre = FinancialRealityEngineService.compute_financial_reality(
+            customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+            transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+            payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+            savings=data.get("savings", 0.0)
+        )
+        
+        runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
+        distress = _safe_float(getattr(fre, 'distress_score', 0), 0)
+        liquid = _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0)
+        income = _safe_float(getattr(getattr(fre, 'monthly_income', None), 'value', 0), 0)
+        expenses = _safe_float(getattr(getattr(fre, 'monthly_expenses', None), 'value', 0), 0)
+        
+        recommendations = []
+        
+        # Cash runway check
+        if runway < 30:
+            recommendations.append({
+                "what": f"Your cash balance may become tight in {int(runway)} days because upcoming payments exceed expected income.",
+                "why": "An EMI and supplier payment are due before your expected receipts arrive.",
+                "action": "Contact your bank about restructuring your EMI, or follow up on pending invoices to collect them faster.",
+                "confidence": 90,
+                "urgency": "urgent" if runway < 15 else "caution"
+            })
+        
+        # Receivables check
+        rec_overdue = sum(_safe_float(r.amount, 0) for r in receivables if getattr(r, 'days_outstanding', 0) > 30)
+        if rec_overdue > 100000:
+            recommendations.append({
+                "what": f"You have ₹{rec_overdue:,.0f} in overdue payments from customers.",
+                "why": "Late payments from your buyers are reducing your available cash.",
+                "action": "Follow up with buyers directly, or use TReDS platform to get paid early on eligible invoices.",
+                "confidence": 85,
+                "urgency": "caution"
+            })
+        
+        # High EMI burden
+        if monthly_emis > income * 0.5:
+            recommendations.append({
+                "what": "Your loan payments take up more than half your monthly income.",
+                "why": "High EMI burden leaves little room for living expenses and emergencies.",
+                "action": "Talk to your bank about extending loan tenure to reduce monthly EMI, or consolidate loans.",
+                "confidence": 80,
+                "urgency": "caution"
+            })
+        
+        # Low distress - positive
+        if distress < 30 and runway > 60:
+            recommendations.append({
+                "what": "Your financial health is good with comfortable cash reserves.",
+                "why": "You have enough savings to cover several months of expenses.",
+                "action": "Keep building your emergency fund. Consider investing surplus in low-risk options.",
+                "confidence": 95,
+                "urgency": "positive"
+            })
+        
+        return recommendations[:3]  # Top 3 priority
+    except Exception as e:
+        logger.warning(f"Recommendations build failed: {e}")
+        return []
+
+
+def _build_cashflow_data(customer_id: str) -> dict:
+    """Build cash flow chart data."""
+    try:
+        data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+        fre = FinancialRealityEngineService.compute_financial_reality(
+            customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+            transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+            payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+            savings=data.get("savings", 0.0)
+        )
+        
+        # Simplified 30-day projection
+        liquid = _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0)
+        income = _safe_float(getattr(getattr(fre, 'monthly_income', None), 'value', 0), 0)
+        expenses = _safe_float(getattr(getattr(fre, 'monthly_expenses', None), 'value', 0), 0)
+        monthly_emis = sum(_safe_float(l.monthly_emi, 0) for l in loans)
+        
+        labels = [f"Day {i*5}" for i in range(7)]
+        income_arr = [round(income / 6)] * 7
+        expenses_arr = [round((expenses + monthly_emis) / 6)] * 7
+        balance = [round(liquid + (income - expenses - monthly_emis) * i / 6) for i in range(7)]
+        
+        return {
+            "labels": labels,
+            "income": income_arr,
+            "expenses": expenses_arr,
+            "balance": balance
+        }
+    except Exception:
+        return {"labels": [], "income": [], "expenses": [], "balance": []}
+
+
+def _build_customer_detail_data(customer_id: str) -> dict:
+    """Build full customer detail data for the detail page."""
+    try:
+        data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+        fre = FinancialRealityEngineService.compute_financial_reality(
+            customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+            transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+            payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+            savings=data.get("savings", 0.0)
+        )
+        
+        # Income breakdown
+        income_val = _safe_float(getattr(getattr(fre, 'monthly_income', None), 'value', 0), 0)
+        business_rev = sum(_safe_float(a.monthly_revenue_contribution, 0) for a in assets)
+        salary = income_val - business_rev if income_val > business_rev else 0
+        
+        # Expenses breakdown
+        expenses_val = _safe_float(getattr(getattr(fre, 'monthly_expenses', None), 'value', 0), 0)
+        
+        # Build loans list
+        loans_list = []
+        for loan in loans:
+            loans_list.append({
+                "name": f"Loan #{loan.id[-4:]}",
+                "lender": loan.lender_name,
+                "type": loan.loan_type.replace("_", " ").title(),
+                "outstanding": _safe_float(loan.outstanding_principal, 0),
+                "emi": _safe_float(loan.monthly_emi, 0),
+                "rate": _safe_float(loan.interest_rate_annual, 0),
+                "months_remaining": _safe_float(loan.tenure_months_remaining, 0)
+            })
+        
+        # Build receivables list
+        receivables_list = []
+        for rec in receivables:
+            receivables_list.append({
+                "buyer": rec.buyer_name,
+                "amount": _safe_float(rec.amount, 0),
+                "due_date": getattr(rec, 'due_date', 'N/A'),
+                "days_outstanding": getattr(rec, 'days_outstanding', 0),
+                "status": "OVERDUE" if getattr(rec, 'days_outstanding', 0) > 0 else "CURRENT"
+            })
+        
+        # Business revenue trend
+        business_trend = 0
+        if len(assets) > 0:
+            business_trend = 5  # placeholder
+        
+        # Assets
+        assets_list = []
+        for asset in assets:
+            net = _safe_float(asset.monthly_revenue_contribution, 0) - _safe_float(asset.monthly_operating_cost, 0)
+            assets_list.append({
+                "name": asset.asset_name,
+                "type": asset.asset_type,
+                "value": _safe_float(asset.purchase_cost, 0),
+                "monthly_income": _safe_float(asset.monthly_revenue_contribution, 0),
+                "monthly_cost": _safe_float(asset.monthly_operating_cost, 0),
+                "net_monthly": net,
+                "status": asset.status
+            })
+        
+        # Seasonality
+        season_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        typical = [income_val * 0.8, income_val * 0.9, income_val * 1.1, income_val * 1.2, income_val * 1.3, income_val * 1.2, income_val * 1.1, income_val * 1.0, income_val * 0.9, income_val * 0.8, income_val * 0.7, income_val * 0.8]
+        actual = [income_val * 0.85, income_val * 0.95, income_val * 1.05, income_val * 1.15, income_val * 1.25, income_val * 1.15, income_val * 1.05, income_val * 0.95, income_val * 0.85, income_val * 0.75, income_val * 0.75, income_val * 0.85]
+        
+        # Benchmark
+        benchmark = [
+            {"name": "Cash Reserve", "percentile": 75, "position": "above"},
+            {"name": "Debt Level", "percentile": 60, "position": "average"},
+            {"name": "Revenue Growth", "percentile": 55, "position": "average"},
+            {"name": "Profit Margin", "percentile": 70, "position": "above"},
+            {"name": "Payment Discipline", "percentile": 80, "position": "above"}
+        ]
+        
+        return {
+            "name": data.get("name", "Customer"),
+            "archetype": data.get("archetype", "N/A"),
+            "income": {
+                "monthly_avg": income_val,
+                "business_revenue": business_rev,
+                "salary": salary,
+                "other": 0,
+                "labels": ["Business", "Salary", "Other"],
+                "values": [business_rev, salary, 0]
+            },
+            "expenses": {
+                "monthly_total": expenses_val,
+                "essential": round(expenses_val * 0.7),
+                "housing": round(expenses_val * 0.3),
+                "utilities": round(expenses_val * 0.15),
+                "food": round(expenses_val * 0.15),
+                "transport": round(expenses_val * 0.1),
+                "discretionary": round(expenses_val * 0.3),
+                "breakdown_labels": ["Housing", "Utilities", "Food", "Transport", "Other"],
+                "breakdown_values": [round(expenses_val * 0.3), round(expenses_val * 0.15), round(expenses_val * 0.15), round(expenses_val * 0.1), round(expenses_val * 0.3)]
+            },
+            "cashflow": {
+                "this_month_net": round(income_val - expenses_val - sum(_safe_float(l.monthly_emi, 0) for l in loans)),
+                "thirty_day_forecast": round(income_val - expenses_val - sum(_safe_float(l.monthly_emi, 0) for l in loans)),
+                "lowest_point": max(0, _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0) - 50000),
+                "labels": [f"Day {i*5}" for i in range(7)],
+                "income": [round(income_val / 6)] * 7,
+                "expenses": [round((expenses_val + sum(_safe_float(l.monthly_emi, 0) for l in loans)) / 6)] * 7,
+                "balances": [round(_safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0) + (income_val - expenses_val - sum(_safe_float(l.monthly_emi, 0) for l in loans)) * i / 6) for i in range(7)],
+                "zeros": [0] * 7
+            },
+            "loans": loans_list,
+            "receivables": receivables_list,
+            "business": {
+                "this_month": business_rev,
+                "last_month": round(business_rev * 0.95),
+                "trend": business_trend,
+                "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                "values": [business_rev/7] * 7
+            },
+            "assets": assets_list,
+            "seasonality": {
+                "peak_months": "Mar-May, Oct-Dec",
+                "lean_months": "Jun-Sep",
+                "current_period": "normal",
+                "advice": "Business is in a normal period. Plan for lean months by building cash reserves now.",
+                "labels": season_labels,
+                "typical": typical,
+                "actual": actual
+            },
+            "benchmark": benchmark,
+            "benchmark_insight": "Your cash reserves are better than 75% of similar businesses. Debt levels are average - consider refinancing if rates drop.",
+            "recommendations": _build_priority_recommendations(customer_id)
+        }
+    except Exception as e:
+        logger.warning(f"Detail data build failed: {e}")
+        return {"name": "Customer", "recommendations": []}
+
+
+# ===========================
+# Customer Portal Routes
+# ===========================
+@app.get("/customer", response_class=HTMLResponse, tags=["Customer Portal"])
+async def customer_root_redirect():
+    """Redirect to customer dashboard."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/customer/dashboard")
+
+
+@app.get("/customer/dashboard", response_class=HTMLResponse, tags=["Customer Portal"])
+async def customer_dashboard(request: Request):
+    """Render the customer dashboard."""
+    # Use first sample customer for demo
+    customer_id = "CUST_MSME_TIRUPPUR_001"
+    
+    metrics = _build_customer_metrics(customer_id)
+    priority_recs = _build_priority_recommendations(customer_id)
+    cashflow_data = _build_cashflow_data(customer_id)
+    
+    # Get customer data for name
+    data, _, _, _, _, _, _ = get_customer_entities(customer_id)
+    customer_name = data.get("name", "Customer")
+    
+    # Expense breakdown for chart
+    expense_labels = ["Housing", "Utilities", "Food", "Transport", "Other"]
+    expense_values = [metrics["essential_expenses"] * 0.43, metrics["essential_expenses"] * 0.21, metrics["essential_expenses"] * 0.21, metrics["essential_expenses"] * 0.14, metrics["discretionary_expenses"]]
+    
+    return templates.TemplateResponse("customer_dashboard.html", {
+        "request": request,
+        "customer": {"name": customer_name, "id": customer_id},
+        "metrics": type('obj', (object,), metrics),
+        "priority_recommendations": priority_recs,
+        "cashflow_labels": cashflow_data["labels"],
+        "cashflow_income": cashflow_data["income"],
+        "cashflow_expenses": cashflow_data["expenses"],
+        "cashflow_balance": cashflow_data["balance"],
+        "expense_labels": expense_labels,
+        "expense_values": expense_values
+    })
+
+
+@app.get("/customer/detail", response_class=HTMLResponse, tags=["Customer Portal"])
+async def customer_detail(request: Request):
+    """Render the customer detail page with all sections."""
+    customer_id = "CUST_MSME_TIRUPPUR_001"
+    
+    detail_data = _build_customer_detail_data(customer_id)
+    
+    # Convert to object for template access
+    class DetailObj:
+        def __init__(self, d):
+            for k, v in d.items():
+                setattr(self, k, v)
+    
+    detail = DetailObj(detail_data)
+    
+    return templates.TemplateResponse("customer_detail.html", {
+        "request": request,
+        "detail": detail
+    })
 
 

@@ -1,198 +1,427 @@
-{% extends "base.html" %}
+{% extends "customer_base.html" %}
 
-{% block title %}FINRES - {{ customer.name }} - Customer Detail{% endblock %}
+{% block title %}FINRES - My Financial Details{% endblock %}
 
 {% block content %}
-<div class="section-header">
-    <h1 class="section-title">
-        <i class="bi bi-person"></i> {{ customer.name }}
-    </h1>
-    <div class="btn-group btn-group-sm">
-        <a href="{{ url_for('customers') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back
-        </button>
-        <button class="btn btn-outline-primary" onclick="printCustomerReport()">
-            <i class="bi bi-printer"></i> Print
-        </button>
+<div class="mb-4">
+    <h1 class="h3 mb-1">My Financial Details</h1>
+    <p class="text-muted">Detailed breakdown of your financial picture</p>
+</div>
+
+<!-- 1. Income -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-currency-rupee"></i> Income</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Monthly Average</span>
+                    <span class="data-value text-success">+₹{{ "{:,.0f}".format(detail.income.monthly_avg) }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Business Revenue</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.income.business_revenue) }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Salary / Wages</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.income.salary) }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Other Income</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.income.other) }}</span>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="chart-container" style="height: 150px;">
+                    <canvas id="incomeChart"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="row">
-    <!-- Left Column: Modules 1 & 7 -->
-    <div class="col-md-5">
-        <!-- Module 1: Financial Reality Engine -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h2 class="mb-0">Financial Reality Engine (FRE)</h2>
-            </div>
-            <div class="card-body">
-                <div class="index-matrix mb-3">
-                    <div class="index-box">
-                        <div class="index-label">Solvency Health</div>
-                        <div class="index-score" id="healthScore" style="color: #1b5e20;">--</div>
-                    </div>
-                    <div class="index-box">
-                        <div class="index-label">Contextual Distress</div>
-                        <div class="index-score" id="distressScore" style="color: #b71c1c;">--</div>
-                    </div>
-                </div>
-                <table class="bank-grid">
-                    <tr>
-                        <td class="grid-label">Total Debt Outstanding</td>
-                        <td class="grid-val val-mono" id="totalDebt">--</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Monthly Debt Service (EMI)</td>
-                        <td class="grid-val val-mono" id="monthlyEMI">--</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Liquid Bank Balances</td>
-                        <td class="grid-val val-mono" id="liquidBalance">--</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Cash Runway</td>
-                        <td class="grid-val val-mono" id="cashRunway" style="color: #b78103;">-- Days</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Sahamati AA Completeness</td>
-                        <td class="grid-val" id="completeness">--% (Consented)</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Risk Classification</td>
-                        <td class="grid-val" id="riskClassification"><strong>--</strong></td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-
-        <!-- Module 7: Context-Aware Intelligence Engine -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h2 class="mb-0">Context Intelligence (CIE)</h2>
-            </div>
-            <div class="card-body">
-                <p style="font-size: 11px; color: var(--c-text-secondary); margin-bottom: 10px;">
-                    Calibrating borrower against regional cluster benchmark...
-                </p>
-                <table class="bank-grid">
-                    <tr>
-                        <td class="grid-label">Borrower MoM Revenue</td>
-                        <td class="grid-val val-mono" id="borrowerMoM" style="color: #b71c1c;">--%</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Regional Cluster Average</td>
-                        <td class="grid-val val-mono" id="clusterMoM">--%</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Abnormal Divergence</td>
-                        <td class="grid-val val-mono" id="clusterDeviation" style="color: #b71c1c;">--%</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Risk Classification</td>
-                        <td class="grid-val" id="seasonalStatus"><strong>--</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Industry</td>
-                        <td class="grid-val" id="industry">--</td>
-                    </tr>
-                    <tr>
-                        <td class="grid-label">Customer Growth</td>
-                        <td class="grid-val" id="customerGrowth">--%</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
+<!-- 2. Expenses -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-cash-stack"></i> Expenses</span>
     </div>
-
-    <!-- Right Column: Modules 2, 3, 11 -->
-    <div class="col-md-4">
-        <!-- Module 2 & 3: Obligation Collision Radar -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h2 class="mb-0">Obligation Collision Radar</h2>
-            </div>
-            <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="cashTrajectoryChart"></canvas>
-                </div>
-                <div class="schedule-log" id="scheduleLogContainer">
-                    <!-- Timeline rows loaded dynamically -->
-                </div>
-                <div class="mt-3">
-                    <span class="tag-danger" id="collisionSummary">--</span>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Monthly Total</span>
+                    <span class="data-value text-danger">-₹{{ "{:,.0f}".format(detail.expenses.monthly_total) }}</span>
                 </div>
             </div>
-        </div>
-
-        <!-- Module 11: Asset-Level Financial Intelligence -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h2 class="mb-0">Machinery & Production Line Economics (ALE)</h2>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Essential Expenses</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.essential) }}</span>
+                </div>
             </div>
-            <div class="card-body" style="padding: 6px 12px 12px 12px;">
-                <div id="assetGridContainer">
-                    <!-- Machinery breakdown table loaded dynamically -->
-                    <div class="no-data">
-                        <i class="bi bi-mouse"></i>
-                        <div>Loading asset data...</div>
-                    </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Housing / Rent</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.housing) }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Utilities</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.utilities) }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Food & Groceries</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.food) }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Transport</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.transport) }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="data-row">
+                    <span class="data-label">Discretionary</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.discretionary) }}</span>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="chart-container" style="height: 150px;">
+                    <canvas id="expenseBreakdownChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Right Column: Modules 16, 18, 19, 25 -->
-    <div class="col-md-3">
-        <!-- Module 18: Decision Twin Simulator -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h2 class="mb-0">Decision Twin Counterfactual Sandbox</h2>
-                <span class="text-muted" style="font-size: 10px; font-weight: 700; color: #546e7a;">PRUDENTIAL DSCR ≥ 1.25</span>
+<!-- 3. Cash Flow -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-activity"></i> Cash Flow</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <div class="data-row">
+                    <span class="data-label">This Month Net</span>
+                    <span class="data-value {% if detail.cashflow.this_month_net > 0 %}text-success{% else %}text-danger{% endif %}">{{ detail.cashflow.this_month_net > 0 and '+' or '' }}{{ "{:,.0f}".format(detail.cashflow.this_month_net) }}</span>
+                </div>
             </div>
-            <div class="panel-content">
-                <div class="intervention-block" id="twinOptionsContainer">
-                    <!-- Counterfactual options loaded dynamically -->
-                    <div class="no-data">
-                        <i class="bi bi-lightbulb"></i>
-                        <div>Loading simulated alternatives...</div>
-                    </div>
+            <div class="col-md-4">
+                <div class="data-row">
+                    <span class="data-label">30-Day Forecast</span>
+                    <span class="data-value {% if detail.cashflow.thirty_day_forecast > 0 %}text-success{% else %}text-danger{% endif %}">{{ detail.cashflow.thirty_day_forecast > 0 and '+' or '' }}{{ "{:,.0f}".format(detail.cashflow.thirty_day_forecast) }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="data-row">
+                    <span class="data-label">Lowest Point</span>
+                    <span class="data-value text-danger">₹{{ "{:,.0f}".format(detail.cashflow.lowest_point) }}</span>
                 </div>
             </div>
         </div>
+        <div class="chart-container">
+            <canvas id="cashflowDetailChart"></canvas>
+        </div>
+    </div>
+</div>
 
-        <!-- Module 19 & 25: Least-Harm Action Plan -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="mb-0">Resolution Strategy & Decision Panel</h2>
-                <span class="tag-safe">PRUDENTIAL MANDATE</span>
+<!-- 4. Loans -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-credit-card"></i> Loans & EMIs</span>
+    </div>
+    <div class="card-body">
+        {% if detail.loans %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Loan</th>
+                        <th>Type</th>
+                        <th>Outstanding</th>
+                        <th>Monthly EMI</th>
+                        <th>Rate</th>
+                        <th>Remaining</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in detail.loans %}
+                    <tr>
+                        <td>
+                            <strong>{{ loan.name }}</strong><br>
+                            <small class="text-muted">{{ loan.lender }}</small>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ loan.type }}</span></td>
+                        <td class="fw-bold">₹{{ "{:,.0f}".format(loan.outstanding) }}</td>
+                        <td class="fw-bold text-primary">₹{{ "{:,.0f}".format(loan.emi) }}</td>
+                        <td>{{ loan.rate }}%</td>
+                        <td>{{ loan.months_remaining }} months</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="data-row mt-3">
+            <span class="data-label">Total Monthly EMIs</span>
+            <span class="data-value text-primary fw-bold">₹{{ "{:,.0f}".format(detail.loans | sum(attribute='emi')) }}</span>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-check-circle text-success"></i>
+            <h5>No active loans</h5>
+            <p>You don't have any outstanding loans right now.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 5. Receivables -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-receipt"></i> Money Owed to You (Receivables)</span>
+    </div>
+    <div class="card-body">
+        {% if detail.receivables %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>From</th>
+                        <th>Amount</th>
+                        <th>Due Date</th>
+                        <th>Days Overdue</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rec in detail.receivables %}
+                    <tr>
+                        <td>
+                            <strong>{{ rec.buyer }}</strong>
+                        </td>
+                        <td class="fw-bold text-success">₹{{ "{:,.0f}".format(rec.amount) }}</td>
+                        <td>{{ rec.due_date }}</td>
+                        <td>
+                            {% if rec.days_overdue > 0 %}
+                                <span class="badge bg-danger">{{ rec.days_overdue }} days</span>
+                            {% else %}
+                                <span class="badge bg-success">Not due</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if rec.status == 'CURRENT' else 'warning' if rec.status == 'DUE_SOON' else 'danger' }}">
+                                {{ rec.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="data-row mt-3">
+            <span class="data-label">Total Expected This Month</span>
+            <span class="data-value text-success fw-bold">+₹{{ "{:,.0f}".format(detail.receivables | sum(attribute='amount')) }}</span>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <h5>No receivables</h5>
+            <p>No one currently owes you money.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 6. Business Revenue -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-briefcase"></i> Business Revenue</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <div class="data-row">
+                    <span class="data-label">This Month</span>
+                    <span class="data-value text-success">₹{{ "{:,.0f}".format(detail.business.this_month) }}</span>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="action-sequence" id="actionSequenceContainer">
-                    <!-- Action steps loaded dynamically -->
-                    <div class="no-data">
-                        <i class="bi bi-list-task"></i>
-                        <div>Loading decision actions...</div>
+            <div class="col-md-4">
+                <div class="data-row">
+                    <span class="data-label">Last Month</span>
+                    <span class="data-value">₹{{ "{:,.0f}".format(detail.business.last_month) }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="data-row">
+                    <span class="data-label">Trend</span>
+                    <span class="data-value {% if detail.business.trend > 0 %}text-success{% elif detail.business.trend < 0 %}text-danger{% else %}text-muted{% endif %}">
+                        {% if detail.business.trend > 0 %}+{% endif %}{{ detail.business.trend }}%
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="chart-container" style="height: 150px;">
+            <canvas id="businessChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 7. Assets -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-tools"></i> Assets & Equipment</span>
+    </div>
+    <div class="card-body">
+        {% if detail.assets %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>Monthly Income</th>
+                        <th>Monthly Cost</th>
+                        <th>Net Benefit</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for asset in detail.assets %}
+                    <tr>
+                        <td>
+                            <strong>{{ asset.name }}</strong>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ asset.type }}</span></td>
+                        <td>₹{{ "{:,.0f}".format(asset.value) }}</td>
+                        <td class="text-success">+₹{{ "{:,.0f}".format(asset.monthly_income) }}</td>
+                        <td class="text-danger">-₹{{ "{:,.0f}".format(asset.monthly_cost) }}</td>
+                        <td class="fw-bold {% if asset.net_monthly > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ asset.net_monthly > 0 and '+' or '' }}₹{{ "{:,.0f}".format(asset.net_monthly) }}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if asset.status == 'PRODUCTIVE' else 'warning' if asset.status == 'MARGINAL' else 'danger' }}">
+                                {{ asset.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-box"></i>
+            <h5>No business assets</h5>
+            <p>No equipment or machinery registered.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 8. Seasonality -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-sun"></i> Seasonal Patterns</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <p class="text-muted mb-1">Your industry typically sees:</p>
+                <ul class="small text-muted">
+                    <li><strong>Peak months:</strong> {{ detail.seasonality.peak_months }}</li>
+                    <li><strong>Lean months:</strong> {{ detail.seasonality.lean_months }}</li>
+                    <li><strong>Current period:</strong> <span class="badge bg-{{ 'success' if detail.seasonality.current_period == 'peak' else 'warning' if detail.seasonality.current_period == 'normal' else 'danger' }}">{{ detail.seasonality.current_period | title }}</span></li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <p class="text-muted mb-1">What this means for you:</p>
+                <p class="small">{{ detail.seasonality.advice }}</p>
+            </div>
+        </div>
+        <div class="chart-container" style="height: 150px;">
+            <canvas id="seasonalityChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 9. Industry Benchmark -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-people"></i> How You Compare</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <h6 class="fw-bold mb-3">Your Business vs Similar Businesses</h6>
+                {% for metric in detail.benchmark %}
+                <div class="data-row">
+                    <span class="data-label">{{ metric.name }}</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height: 6px;">
+                            <div class="progress-bar bg-{{ 'success' if metric.position == 'above' else 'warning' if metric.position == 'average' else 'danger' }}" style="width: {{ metric.percentile }}%"></div>
+                        </div>
+                        <span class="small {% if metric.position == 'above' %}text-success{% elif metric.position == 'below' %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                            {{ metric.position | title }}
+                        </span>
                     </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="col-md-6">
+                <div class="p-3 bg-light rounded">
+                    <h6 class="fw-bold mb-2">Key Insight</h6>
+                    <p class="small text-muted mb-0">{{ detail.benchmark_insight }}</p>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Module 16, 18, 19, 25 remaining -->
-    <div class="col-md-2">
-        <div class="card">
-            <div class="card-header">
-                <h2 class="mb-0">Governance Audit</h2>
+<!-- 10. Recommendations -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-lightbulb"></i> Personalized Recommendations</span>
+    </div>
+    <div class="card-body">
+        {% for rec in detail.recommendations %}
+        <div class="recommendation-card {{ rec.urgency }}">
+            <div class="rec-section">
+                <div class="rec-label">What's Happening</div>
+                <div class="rec-text">{{ rec.what }}</div>
             </div>
-            <div class="card-body">
-                <div id="auditLedger">
-                    <div class="no-data">
-                        <i class="bi bi-file-text"></i>
-                        <div>Loading audit trail...</div>
-                    </div>
+            <div class="rec-section">
+                <div class="rec-label">Why</div>
+                <div class="rec-text">{{ rec.why }}</div>
+            </div>
+            <div class="rec-section">
+                <div class="rec-label">What You Can Do</div>
+                <div class="rec-text">{{ rec.action }}</div>
+            </div>
+            <div class="rec-section">
+                <div class="rec-label d-flex justify-content-between align-items-center">
+                    Confidence
+                    <span class="badge bg-light text-dark">{{ rec.confidence }}%</span>
+                </div>
+                <div class="confidence-meter">
+                    <div class="confidence-fill bg-{{ 'success' if rec.confidence >= 80 else 'warning' if rec.confidence >= 50 else 'danger' }}" style="width: {{ rec.confidence }}%"></div>
                 </div>
             </div>
         </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}
@@ -200,131 +429,137 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Render evidence from JSON data in the evidence modal
-        function renderEvidence(evidenceData) {
-            const modalBody = document.getElementById('evidenceModalBody');
-            
-            if (!evidenceData) {
-                modalBody.innerHTML = '<p>No evidence available</p>';
-                return;
+        // Income Chart
+        const incomeCtx = document.getElementById('incomeChart').getContext('2d');
+        new Chart(incomeCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ detail.income.labels | tojson }},
+                datasets: [{
+                    label: 'Monthly Income',
+                    data: {{ detail.income.values | tojson }},
+                    backgroundColor: 'rgba(22, 163, 74, 0.8)',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
             }
-            
-            if (Array.isArray(evidenceData)) {
-                modalBody.innerHTML = evidenceData.map(item => {
-                    const title = item.title || item.type || 'Evidence';
-                    const desc = item.details || item.description || '';
-                    const conf = item.confidence !== undefined ? `<div><small class="text-muted">Confidence: ${item.confidence}%</small></div>` : '';
-                    return `<div class="mb-3 p-3 border rounded"><h6>${title}</h6><p>${desc}</p>${conf}</div>`;
-                }).join('');
-            } else if (typeof evidenceData === 'object') {
-                modalBody.innerHTML = `<pre>${JSON.stringify(evidenceData, null, 2)}</pre>`;
-            } else {
-                modalBody.innerHTML = `<p>${evidenceData}</p>`;
-            }
-        }
-        
-        // Render alternatives from JSON data in alternatives modal
-        function renderAlternatives(alternativesData) {
-            const modalBody = document.getElementById('alternativesModalBody');
-            
-            if (!alternativesData || alternativesData.length === 0) {
-                modalBody.innerHTML = '<p>No alternatives available</p>';
-                return;
-            }
-            
-            modalBody.innerHTML = alternativesData.map((alt, index) => {
-                const name = alt.name || alt.title || `Option ${index + 1}`;
-                const desc = alt.description || '';
-                const impact = alt.impact || '';
-                const risk = alt.risk || '';
-                const confidence = alt.confidence !== undefined ? `Confidence: ${alt.confidence}%` : '';
-                const evidence = alt.evidence ? Array.isArray(alt.evidence) ? alt.evidence.join(', ') : alt.evidence : 'N/A';
-                
-                return `
-                    <div class="mb-4 p-3 border rounded">
-                        <h6>Alternative ${index + 1}: ${name}</h6>
-                        <p>${desc}</p>
-                        ${impact ? `<div class="mb-2"><strong>Impact:</strong> ${impact}</div>` : ''}
-                        ${risk ? `<div class="mb-2"><small class="text-muted">${risk}</small></div>` : ''}
-                        ${confidence ? `<div class="mb-2">${confidence}</div>` : ''}
-                        ${evidence ? `<div class="mb-2"><small class="text-muted">Evidence: ${evidence}</small></div>` : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        // Initialize charts if data exists
-        const healthScore = parseFloat(document.getElementById('healthScore').textContent);
-        if (!isNaN(healthScore)) {
-            const ctx = document.getElementById('cashTrajectoryChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Day 1', 'Day 7', 'Day 14', 'Day 21', 'Day 30'],
-                    datasets: [{
-                        label: 'Liquidity Balance (₹)',
-                        data: [healthScore, healthScore * 0.9, healthScore * 0.8, healthScore * 0.7, healthScore * 0.6],
-                        borderColor: '#003e6b',
-                        backgroundColor: 'rgba(0, 62, 107, 0.04)',
-                        fill: true,
-                        tension: 0.05,
-                        pointRadius: 2.5,
-                        pointBackgroundColor: '#1b5e20'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
-    });
-</script>
+        });
 
-<script>
-    // Simulation data loading - will be populated by Flask template variables
-    {% if customer.alternatives %}
-    document.addEventListener('DOMContentLoaded', function() {
-        const alternatives = {{ customer.alternatives | tojson | safe }};
-        const altContainer = document.getElementById('twinOptionsContainer');
-        
-        altContainer.innerHTML = '';
-        
-        alternatives.forEach((alt, index) => {
-            const item = document.createElement('div');
-            item.className = 'sim-option';
-            const isPermissible = alt.is_permissible !== false;
-            item.style.background = isPermissible ? '#ffffff' : '#fff8f8';
-            item.style.borderColor = isPermissible ? '#dee2e6' : '#ef9a9a';
-            
-            const riskClass = isPermissible ? 'sim-option.approved' : 'sim-option.vetoed';
-            item.innerHTML = `
-                <div class="sim-head">
-                    <span class="sim-title">Alternative ${index + 1}</span>
-                    <span class="${!isPermissible ? 'tag-danger' : 'tag-safe'}">
-                        ${!isPermissible ? 'VETOED (DSCR < 1.25)' : 'PERMISSIBLE'}
-                    </span>
-                </div>
-                <div class="sim-body">${alt.description || 'No description available'}</div>
-                <div class="sim-metrics">
-                    <span style="color: ${!isPermissible ? '#b71c1c' : '#1b5e20'}">
-                        ${!isPermissible ? 'Projected DSCR: N/A' : 'Projected DSCR: ' + (alt.projected_dscr || 'N/A')}
-                    </span>
-                    <span>Runway: ${alt.cash_runway_days || 'N/A'}d</span>
-                </div>
-            `;
-            altContainer.appendChild(item);
+        // Expense Breakdown Chart
+        const expenseBreakdownCtx = document.getElementById('expenseBreakdownChart').getContext('2d');
+        new Chart(expenseBreakdownCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ detail.expenses.breakdown_labels | tojson }},
+                datasets: [{
+                    data: {{ detail.expenses.breakdown_values | tojson }},
+                    backgroundColor: ['#dc2626', '#f59e0b', '#0891b2', '#7c3aed', '#ec4899', '#16a34a'],
+                    borderWidth: 0,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { size: 11 } } } }
+            }
+        });
+
+        // Cash Flow Detail Chart
+        const cashflowDetailCtx = document.getElementById('cashflowDetailChart').getContext('2d');
+        new Chart(cashflowDetailCtx, {
+            type: 'line',
+            data: {
+                labels: {{ detail.cashflow.labels | tojson }},
+                datasets: [
+                    {
+                        label: 'Projected Balance',
+                        data: {{ detail.cashflow.balances | tojson }},
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Zero Line',
+                        data: {{ detail.cashflow.zeros | tojson }},
+                        borderColor: '#94a3b8',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } },
+                scales: { y: { ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
+            }
+        });
+
+        // Business Revenue Chart
+        const businessCtx = document.getElementById('businessChart').getContext('2d');
+        new Chart(businessCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ detail.business.labels | tojson }},
+                datasets: [{
+                    label: 'Revenue',
+                    data: {{ detail.business.values | tojson }},
+                    backgroundColor: 'rgba(37, 99, 235, 0.8)',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
+            }
+        });
+
+        // Seasonality Chart
+        const seasonalityCtx = document.getElementById('seasonalityChart').getContext('2d');
+        new Chart(seasonalityCtx, {
+            type: 'line',
+            data: {
+                labels: {{ detail.seasonality.labels | tojson }},
+                datasets: [
+                    {
+                        label: 'Typical Revenue',
+                        data: {{ detail.seasonality.typical | tojson }},
+                        borderColor: '#94a3b8',
+                        backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderDash: [5, 5]
+                    },
+                    {
+                        label: 'Your Revenue',
+                        data: {{ detail.seasonality.actual | tojson }},
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } },
+                scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
+            }
         });
     });
-    {% endif %}
-</script>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    function printCustomerReport() {
-        window.print();
-    }
 </script>
 {% endblock %}
