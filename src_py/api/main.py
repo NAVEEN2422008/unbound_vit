@@ -659,8 +659,53 @@ def get_distress_classification(id: str, user: TokenData = Depends(authenticate_
 
 
 # ==============================================================================
-# 4. ROOT-CAUSE & CONTEXT INTELLIGENCE (PEER BENCHMARKING)
+# 4. ROOT-CAUSE ANALYZER (WHY) & CONTEXT INTELLIGENCE
 # ==============================================================================
+
+@app.get("/api/v1/customers/{id}/root-cause", response_model=StandardAPIResponse[RootCauseReport], tags=["Root-Cause Analyzer"])
+def get_v1_root_cause_analysis(
+    id: str,
+    revenue_decline_pct: float = Query(default=0.0),
+    order_volume_decline_pct: float = Query(default=0.0),
+    peer_industry_growth_pct: float = Query(default=-2.0),
+    supplier_cost_inflation_pct: float = Query(default=0.0),
+    user: TokenData = Depends(authenticate_user)
+):
+    """
+    Diagnoses WHY financial distress is occurring across 13 candidate causes.
+    Collects empirical evidence, calculates contribution scores, ranks causes,
+    and returns findings framed responsibly as 'likely contributors' rather than proven causation.
+    """
+    data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(id)
+    fre = FinancialRealityEngineService.compute_financial_reality(
+        customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+        transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+        payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+        savings=data.get("savings", 0.0)
+    )
+    # Asset intelligence diagnostic if assets exist
+    asset_diag = None
+    if len(assets) > 0:
+        asset_inputs = [
+            AssetFinancialIntelligenceService.from_raw_asset_item(
+                a.model_dump(),
+                monthly_emi=next((l.monthly_emi for l in loans if l.id == a.dedicated_loan_id), 0.0)
+            )
+            for a in assets
+        ]
+        asset_diag = AssetFinancialIntelligenceService.generate_comprehensive_diagnostic(asset_inputs)
+
+    report = RootCauseAnalyzerService.analyze_root_causes(
+        customer_id=id,
+        fre=fre,
+        revenue_decline_pct=revenue_decline_pct or (28.0 if fre.cash_buffer_days.value < 15 else 0.0),
+        order_volume_decline_pct=order_volume_decline_pct or (34.0 if fre.cash_buffer_days.value < 15 else 0.0),
+        peer_industry_growth_pct=peer_industry_growth_pct,
+        supplier_cost_inflation_pct=supplier_cost_inflation_pct,
+        asset_diagnostic=asset_diag
+    )
+    return StandardAPIResponse(data=report, message="Root-cause diagnostic generated successfully.")
+
 
 @app.get("/customers/{id}/root-cause", response_model=StandardAPIResponse[Dict[str, Any]], tags=["Root Cause"])
 def get_root_cause_analysis(id: str, user: TokenData = Depends(authenticate_user)):
