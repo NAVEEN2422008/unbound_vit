@@ -70,3 +70,59 @@ class StructuredExplanationResponse(BaseModel):
     zero_hallucination_guarantee: str = "Strictly bounded to deterministic telemetry outputs. Zero fabricated metrics."
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RiskExplanationRequest(BaseModel):
+    customer_id: str
+
+
+class RiskExplanationResponse(BaseModel):
+    """
+    POST /api/v1/explain/risk
+    Answers in plain, evidence-based language:
+    - What happened?
+    - Why?
+    - When?
+    - What evidence supports it?
+    - What are the uncertainties?
+    Zero calculation restriction: All numbers come from upstream services.
+    """
+    customer_id: str
+    what_happened: str
+    why: str
+    when: str
+    evidence: List[str]
+    uncertainties: List[str]
+    plain_language_explanation: str
+    calculation_restriction_notice: str = "NO INDEPENDENT CALCULATION: All figures sourced directly from trusted upstream analytical engines."
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InterventionExplanationRequest(BaseModel):
+    customer_id: str
+    selected_intervention_type: Optional[str] = None
+
+
+class InterventionExplanationResponse(BaseModel):
+    """
+    POST /api/v1/explain/intervention
+    Answers in plain, evidence-based language:
+    - What happened?
+    - What alternatives were evaluated?
+    - Why was this intervention selected?
+    - What evidence supports it?
+    - What are the uncertainties?
+    Zero calculation restriction: All numbers come from upstream services.
+    """
+    customer_id: str
+    selected_intervention: str
+    what_happened: str
+    alternatives_evaluated: List[str]
+    why_this_intervention_selected: str
+    evidence: List[str]
+    uncertainties: List[str]
+    plain_language_explanation: str
+    calculation_restriction_notice: str = "NO INDEPENDENT CALCULATION: All figures sourced directly from trusted upstream analytical engines."
+
+    model_config = ConfigDict(from_attributes=True)

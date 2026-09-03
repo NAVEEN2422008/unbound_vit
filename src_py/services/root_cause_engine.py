@@ -238,7 +238,7 @@ class RootCauseAnalyzerService:
         # ----------------------------------------------------------------------
         # 9. ASSET UNDERPERFORMANCE & 10. LOW UTILIZATION
         # ----------------------------------------------------------------------
-        if asset_diagnostic and asset_diagnostic.portfolio_summary.loss_making_assets > 0:
+        if asset_diagnostic and asset_diagnostic.asset_profile.classification.value in ["LOSS_MAKING", "UNPRODUCTIVE"]:
             candidate_evaluations.append(ContributingCauseItem(
                 cause=CandidateCauseEnum.ASSET_UNDERPERFORMANCE,
                 causality_classification="likely contributor",
@@ -246,10 +246,10 @@ class RootCauseAnalyzerService:
                 confidence=0.87,
                 evidence=[
                     CauseEvidenceRecord(
-                        metric="loss_making_assets",
-                        observed=f"{asset_diagnostic.portfolio_summary.loss_making_assets} assets",
-                        benchmark_or_peer="0 loss-making",
-                        finding=f"Equipment net cash contribution is negative (₹{asset_diagnostic.portfolio_summary.total_net_cash_contribution:,.0f})."
+                        metric="asset_performance_classification",
+                        observed=str(asset_diagnostic.asset_profile.classification.value),
+                        benchmark_or_peer="PRODUCTIVE",
+                        finding=f"Machine '{asset_diagnostic.asset_profile.asset_id}' net cash contribution is negative (₹{asset_diagnostic.asset_profile.net_cash_contribution.value:,.0f}/mo)."
                     ),
                     CauseEvidenceRecord(
                         metric="monthly_asset_burn",
@@ -260,7 +260,7 @@ class RootCauseAnalyzerService:
                 ],
                 narrative_rationale="Financed capital assets are draining liquidity rather than generating operating surplus."
             ))
-            if asset_diagnostic.portfolio_summary.average_utilization_pct < 65.0:
+            if asset_diagnostic.asset_profile.utilization_percentage.value < 65.0:
                 candidate_evaluations.append(ContributingCauseItem(
                     cause=CandidateCauseEnum.LOW_ASSET_UTILIZATION,
                     causality_classification="likely contributor",
@@ -269,7 +269,7 @@ class RootCauseAnalyzerService:
                     evidence=[
                         CauseEvidenceRecord(
                             metric="average_utilization",
-                            observed=f"{asset_diagnostic.portfolio_summary.average_utilization_pct:.1f}%",
+                            observed=f"{asset_diagnostic.asset_profile.utilization_percentage.value:.1f}%",
                             benchmark_or_peer=">= 80.0% productive benchmark",
                             finding="Idle machinery capacity fails to cover fixed financing charges."
                         )

@@ -29,6 +29,7 @@ class AssetDecisionType(str, Enum):
     REFINANCE = "REFINANCE"
     SELL = "SELL"
     REPLACE = "REPLACE"
+    PAUSE = "PAUSE"
     INCREASE_UTILIZATION = "INCREASE_UTILIZATION"
 
 
@@ -56,6 +57,44 @@ class AssetInput(BaseModel):
     revenue_data_label: DataLabel = DataLabel.ACTUAL
 
 
+class AssetType(str, Enum):
+    MACHINE = "machine"
+    VEHICLE = "vehicle"
+    EQUIPMENT = "equipment"
+    PRODUCTION_LINE = "production_line"
+    STORE = "store"
+    OTHER_REVENUE_GENERATING_ASSET = "other_revenue_generating_asset"
+
+
+class AssetHealthAnalysisReport(BaseModel):
+    """
+    Standard output of individual asset health and financial contribution analysis.
+    Output: asset_health, net_contribution, financing_burden, utilization, trend, confidence.
+    """
+    asset_id: str
+    asset_name: str
+    asset_type: str
+    asset_health: AssetClassification  # HIGHLY_PRODUCTIVE, PRODUCTIVE, MARGINAL, UNPRODUCTIVE, LOSS_MAKING
+    gross_contribution: float
+    net_contribution: float
+    revenue_data_status: DataLabel  # ACTUAL, USER_ENTERED, ESTIMATED
+    financing_burden: float  # monthly_emi / revenue_contribution
+    utilization: float  # %
+    trend: str  # STABLE, IMPROVING, DETERIORATING, MARGINAL
+    confidence: float = Field(ge=0.0, le=1.0)
+    monthly_emi: float
+    monthly_revenue: float
+    monthly_operating_cost: float
+    monthly_maintenance_cost: float
+    interpretive_rationale: str
+    data_provenance_disclosure: str = (
+        "Provenance transparency enforced: Estimated contributions are clearly marked as ESTIMATED "
+        "and never represented as actual telemetry."
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AssetPerformanceProfile(BaseModel):
     asset_id: str
     asset_name: str
@@ -79,6 +118,14 @@ class AssetPerformanceProfile(BaseModel):
 
 class HorizonProjection(BaseModel):
     horizon_months: int  # 6, 12, 24
+    monthly_cashflow: float
+    monthly_profit: float
+    debt: float
+    EMI: float
+    financing_cost: float
+    liquidity: float
+    resilience_score: float = Field(ge=0.0, le=100.0)
+    distress_score: float = Field(ge=0.0, le=100.0)
     cumulative_net_cash_flow: float
     total_debt_paid: float
     remaining_loan_balance: float
@@ -93,6 +140,28 @@ class DecisionSimulationResult(BaseModel):
     feasibility_score: float = Field(ge=0.0, le=1.0)
     primary_risk: str
     explainable_rationale: str
+
+
+class MultiScenarioSimulationReport(BaseModel):
+    """
+    Standard output of Asset Decision Simulator.
+    Simulates what may happen across KEEP, RESTRUCTURE_FINANCING, REFINANCE, SELL, REPLACE, PAUSE, INCREASE_UTILIZATION
+    over 6, 12, and 24 month horizons.
+    Adheres strictly to the institutional mandate: This module only simulates and compares;
+    it must never automatically sell an asset.
+    """
+    asset_id: str
+    asset_name: str
+    business_id: str
+    as_of_date: datetime = Field(default_factory=datetime.utcnow)
+    scenarios: List[DecisionSimulationResult]
+    recommended_scenario: AssetDecisionType
+    simulation_disclaimer: str = (
+        "Advisory Simulation Only: This platform generates forward scenario comparisons for human banking decision-support. "
+        "It never automatically sells, liquidates, or repossesses an asset."
+    )
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssetComprehensiveDiagnostic(BaseModel):

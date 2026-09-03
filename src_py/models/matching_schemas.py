@@ -15,12 +15,17 @@ class BusinessRole(str, Enum):
 
 
 class MatchConsentStatus(str, Enum):
-    CONSENT_REQUIRED = "CONSENT_REQUIRED"              # Match found; neither party consented yet
+    MATCH_IDENTIFIED = "MATCH_IDENTIFIED"              # Initial state upon search match
+    CONSENT_REQUIRED = "CONSENT_REQUIRED"              # Match found; awaiting consent
     INITIATOR_CONSENTED = "INITIATOR_CONSENTED"        # Party A consented; awaiting Party B
     COUNTERPARTY_CONSENTED = "COUNTERPARTY_CONSENTED"  # Party B consented; awaiting Party A
-    MUTUAL_CONSENT_GRANTED = "MUTUAL_CONSENT_GRANTED"  # Both parties consented -> Introduction unlocked
-    REJECTED = "REJECTED"                              # Either party declined introduction
-    EXPIRED = "EXPIRED"                                # 14-day consent SLA lapsed
+    BOTH_CONSENTED = "BOTH_CONSENTED"                  # Both parties provided consent
+    MUTUAL_CONSENT_GRANTED = "MUTUAL_CONSENT_GRANTED"  # Alias for BOTH_CONSENTED
+    INTRODUCTION_SENT = "INTRODUCTION_SENT"            # Official bank introduction memo dispatched
+    INTRODUCTION_COMPLETE = "INTRODUCTION_COMPLETE"    # Introduction finalized
+    DECLINED = "DECLINED"                              # Either party declined
+    REJECTED = "REJECTED"                              # Alias for DECLINED
+    EXPIRED = "EXPIRED"                                # Consent SLA lapsed
 
 
 class BusinessEntityProfile(BaseModel):
@@ -80,5 +85,30 @@ class OpportunityMatchResult(BaseModel):
 class ConsentActionRequest(BaseModel):
     match_id: str
     customer_id: str
-    action: str = Field(..., description="APPROVE or REJECT")
+    action: str = Field(..., description="APPROVE, REJECT, or DECLINE")
     authorized_signatory_name: str
+
+
+class BusinessMatchingSearchRequest(BaseModel):
+    customer_id: str
+    target_industries: Optional[List[str]] = None
+    target_geography: Optional[str] = None
+    min_match_score: Optional[float] = 0.50
+
+
+class BusinessMatchingSuccessMetrics(BaseModel):
+    introduction_completed: bool = True
+    business_relationship_created: bool = True
+    additional_revenue_observed: float
+    cash_flow_improvement: float
+    repayment_improvement: str = "PUNCTUAL_DEBT_SERVICING"
+
+
+class BusinessMatchingSearchResponse(BaseModel):
+    distressed_customer_id: str
+    matches_found: int
+    matches: List[OpportunityMatchResult]
+    confidentiality_notice: str = (
+        "CONFIDENTIALITY & DPDP NOTICE: Bank balance, loan details, distress score, "
+        "transaction history, and private financial data are NEVER EXPOSED without explicit authorization."
+    )

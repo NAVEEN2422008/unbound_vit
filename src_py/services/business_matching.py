@@ -178,28 +178,29 @@ class BusinessOpportunityMatchingService:
         if not match_obj:
             raise ValueError(f"Match ID '{req.match_id}' not found in registry.")
 
-        if req.action.upper() == "REJECT":
-            match_obj.status = MatchConsentStatus.REJECTED
+        if req.action.upper() in ["REJECT", "DECLINE"]:
+            match_obj.status = MatchConsentStatus.DECLINED
             return match_obj
 
         now = datetime.utcnow()
         if req.customer_id == match_obj.distressed_customer_id:
             match_obj.initiator_consent_timestamp = now
             if match_obj.status == MatchConsentStatus.COUNTERPARTY_CONSENTED:
-                match_obj.status = MatchConsentStatus.MUTUAL_CONSENT_GRANTED
+                match_obj.status = MatchConsentStatus.BOTH_CONSENTED
             else:
                 match_obj.status = MatchConsentStatus.INITIATOR_CONSENTED
         elif req.customer_id == match_obj.counterparty_customer_id:
             match_obj.counterparty_consent_timestamp = now
             if match_obj.status == MatchConsentStatus.INITIATOR_CONSENTED:
-                match_obj.status = MatchConsentStatus.MUTUAL_CONSENT_GRANTED
+                match_obj.status = MatchConsentStatus.BOTH_CONSENTED
             else:
                 match_obj.status = MatchConsentStatus.COUNTERPARTY_CONSENTED
         else:
             raise ValueError("Customer ID does not belong to this opportunity match.")
 
         # If both parties granted mutual consent: Unlock real introductions & generate audit hash
-        if match_obj.status == MatchConsentStatus.MUTUAL_CONSENT_GRANTED:
+        if match_obj.status in [MatchConsentStatus.BOTH_CONSENTED, MatchConsentStatus.MUTUAL_CONSENT_GRANTED]:
+            match_obj.status = MatchConsentStatus.MUTUAL_CONSENT_GRANTED
             party_a = BANK_BUSINESS_DIRECTORY[match_obj.distressed_customer_id]
             party_b = BANK_BUSINESS_DIRECTORY[match_obj.counterparty_customer_id]
 
