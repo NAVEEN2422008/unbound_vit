@@ -1,0 +1,17 @@
+{
+  "name": "finres-platform",
+  "version": "1.0.0",
+  "description": "FINRES - Financial Resilience & Distress Prevention Platform for Banks",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate-data": "ts-node src/data/generator.ts",
+    "test:phase1": "ts-node test/phase1_test.ts",
+    "build": "tsc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.12.7"
+  }
+}
