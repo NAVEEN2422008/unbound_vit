@@ -1,0 +1,237 @@
+{% extends "monitoring_base.html" %}
+
+{% block title %}FINRES - Model Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Model Management</h1>
+        <p class="text-muted">Monitor and manage model versions, performance, and deployment status</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModelModal">
+        <i class="bi bi-plus"></i> Add Model
+    </button>
+</div>
+
+<!-- Model Performance Overview -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Active Models</div>
+            <div class="metric-value text-success">{{ models | selectattr('status', 'equalto', 'active') | list | length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Staging Models</div>
+            <div class="metric-value text-warning">{{ models | selectattr('status', 'equalto', 'staging') | list | length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Avg Accuracy</div>
+            <div class="metric-value text-primary">{{ "%.1f" | format(models | map(attribute='accuracy') | sum / models | length) }}%</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Total Predictions (24h)</div>
+            <div class="metric-value">{{ "{:,}".format(models | map(attribute='accuracy') | sum * 100 | int) }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Model Table -->
+<div class="card">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-cpu"></i> Model Registry</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Version</th>
+                        <th>Status</th>
+                        <th>Accuracy</th>
+                        <th>Latency (p95)</th>
+                        <th>Throughput</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr>
+                        <td>
+                            <strong>{{ model.name }}</strong>
+                            <br><small class="text-muted">{{ model.id }}</small>
+                        </td>
+                        <td>
+                            <span class="version-badge">{{ model.version }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if model.status == 'active' else 'warning' if model.status == 'staging' else 'secondary' }}">
+                                {{ model.status | title }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                    <div class="progress-bar bg-{{ 'success' if model.accuracy >= 90 else 'warning' if model.accuracy >= 80 else 'danger' }}" style="width: {{ model.accuracy }}%"></div>
+                                </div>
+                                <span class="fw-bold">{{ model.accuracy }}%</span>
+                            </div>
+                        </td>
+                        <td><code>{{ model.latency_ms if model.latency_ms is defined else 45 }}ms</code></td>
+                        <td>{{ "{:,}".format(model.throughput if model.throughput is defined else 1200) }}/min</td>
+                        <td class="text-muted">{{ model.updated }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                {% if model.status != 'active' %}
+                                <button class="btn btn-outline-success" onclick="activateModel('{{ model.id }}')">
+                                    <i class="bi bi-check"></i> Activate
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-outline-primary" onclick="viewModelDetails('{{ model.id }}')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="disableModel('{{ model.id }}')" {% if model.status != 'active' %}disabled{% endif %}>
+                                    <i class="bi bi-x"></i> Disable
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Model Performance Charts -->
+<div class="row g-4 mt-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <span class="section-title"><i class="bi bi-graph-up"></i> Accuracy Trend (30 days)</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="accuracyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <span class="section-title"><i class="bi bi-speedometer2"></i> Latency Distribution</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="latencyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Model Modal -->
+<div class="modal fade" id="addModelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Register New Model</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addModelForm">
+                    <div class="mb-3">
+                        <label class="form-label">Model Name</label>
+                        <input type="text" class="form-control" id="modelName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Model ID (slug)</label>
+                        <input type="text" class="form-control" id="modelId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Version</label>
+                        <input type="text" class="form-control" id="modelVersion" value="v1.0.0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="modelDescription" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Initial Status</label>
+                        <select class="form-select" id="modelStatus">
+                            <option value="staging">Staging</option>
+                            <option value="active">Active</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitAddModel()">
+                    <i class="bi bi-save"></i> Register Model
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Accuracy Trend Chart
+        const accCtx = document.getElementById('accuracyChart').getContext('2d');
+        new Chart(accCtx, {
+            type: 'line',
+            data: {
+                labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                datasets: [
+                    { label: 'Distress Predictor', data: [91.2, 91.8, 92.1, 92.3], borderColor: '#2563eb', tension: 0.4 },
+                    { label: 'Distress Classifier', data: [87.5, 88.1, 88.4, 88.7], borderColor: '#16a34a', tension: 0.4 },
+                    { label: 'Root Cause Analyzer', data: [82.0, 83.5, 84.8, 85.2], borderColor: '#f59e0b', tension: 0.4 },
+                    { label: 'Decision Twin', data: [85.0, 86.2, 86.8, 87.0], borderColor: '#7c3aed', tension: 0.4 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } },
+                scales: { y: { min: 75, max: 100 } }
+            }
+        });
+
+        // Latency Distribution Chart
+        const latCtx = document.getElementById('latencyChart').getContext('2d');
+        new Chart(latCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Distress', 'Classifier', 'Root Cause', 'Seasonal', 'Peer', 'Twin'],
+                datasets: [{
+                    label: 'p95 Latency (ms)',
+                    data: [42, 38, 67, 156, 89, 234],
+                    backgroundColor: 'rgba(37, 99, 235, 0.8)',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    });
+
+    function viewModelDetails(modelId) {
+        alert('Model details for ' + modelId + ' - would open detail modal');
+    }
+</script>
+{% endblock %}

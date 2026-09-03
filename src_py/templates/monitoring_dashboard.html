@@ -1,0 +1,560 @@
+{% extends "monitoring_base.html" %}
+
+{% block title %}FINRES - System Monitoring Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">System Monitoring</h1>
+        <p class="text-muted">Real-time platform health, model performance, and governance metrics</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="autoRefreshToggle" checked>
+            <label class="form-check-label small" for="autoRefreshToggle">Auto-refresh (30s)</label>
+        </div>
+    </div>
+</div>
+
+<!-- System Health Overview -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="metric-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="metric-label">API Health</div>
+                    <div class="metric-value text-success">{{ api_health.uptime_pct }}%</div>
+                    <div class="metric-sub text-muted">{{ api_health.avg_latency_ms }}ms avg latency</div>
+                </div>
+                <span class="status-indicator status-healthy"></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="metric-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="metric-label">Prediction Volume (24h)</div>
+                    <div class="metric-value">{{ "{:,}".format(prediction_volume) }}</div>
+                    <div class="metric-sub text-muted">{{ prediction_change }}% vs yesterday</div>
+                </div>
+                <i class="bi bi-graph-up-arrow text-primary" style="font-size: 2rem;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="metric-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="metric-label">Human Review Rate</div>
+                    <div class="metric-value text-warning">{{ human_review_pct }}%</div>
+                    <div class="metric-sub text-muted">{{ human_review_count }} reviews today</div>
+                </div>
+                <i class="bi bi-person-check text-warning" style="font-size: 2rem;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="metric-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="metric-label">System Errors (24h)</div>
+                    <div class="metric-value {% if error_count > 10 %}text-danger{% elif error_count > 0 %}text-warning{% else %}text-success{% endif %}">{{ error_count }}</div>
+                    <div class="metric-sub text-muted">{{ critical_errors }} critical</div>
+                </div>
+                <i class="bi bi-exclamation-octagon text-danger" style="font-size: 2rem;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Model & Rule Versions -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="section-title"><i class="bi bi-cpu"></i> Model Versions</span>
+                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modelVersionModal">
+                    <i class="bi bi-pencil"></i> Update
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Version</th>
+                                <th>Status</th>
+                                <th>Accuracy</th>
+                                <th>Last Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for model in models %}
+                            <tr>
+                                <td>
+                                    <strong>{{ model.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="version-badge">{{ model.version }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if model.status == 'active' else 'warning' if model.status == 'staging' else 'secondary' }}">
+                                        {{ model.status | title }}
+                                    </span>
+                                </td>
+                                <td>{{ model.accuracy }}%</td>
+                                <td class="text-muted">{{ model.updated }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        {% if model.status != 'active' %}
+                                        <button class="btn btn-outline-success" onclick="activateModel('{{ model.id }}')">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-outline-danger" onclick="disableModel('{{ model.id }}')" {% if model.status != 'active' %}disabled{% endif %}>
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="section-title"><i class="bi bi-sliders"></i> Rule Versions</span>
+                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ruleVersionModal">
+                    <i class="bi bi-pencil"></i> Update
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Rule</th>
+                                <th>Version</th>
+                                <th>Threshold</th>
+                                <th>Status</th>
+                                <th>Last Changed</th>
+                                <th>Changed By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rule in rules %}
+                            <tr>
+                                <td>
+                                    <strong>{{ rule.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="version-badge">{{ rule.version }}</span>
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm threshold-input threshold-input-{{ rule.id }}" 
+                                           value="{{ rule.threshold }}" step="0.01" {% if rule.sensitive %}disabled title="Sensitive threshold - requires admin approval"{% endif %}>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if rule.enabled else 'secondary' }}">
+                                        {{ 'Enabled' if rule.enabled else 'Disabled' }}
+                                    </span>
+                                </td>
+                                <td class="text-muted">{{ rule.updated }}</td>
+                                <td class="text-muted">{{ rule.changed_by }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">* Sensitive thresholds require admin approval and are audited.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confidence Distribution & Data Quality -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <span class="section-title"><i class="bi bi-bar-chart"></i> Confidence Distribution</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <span class="section-title"><i class="bi bi-database"></i> Data Completeness</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container small-chart">
+                    <canvas id="completenessChart"></canvas>
+                </div>
+                <div class="row g-3 mt-3">
+                    {% for source in data_sources %}
+                    <div class="col-md-4">
+                        <div class="metric-card p-3">
+                            <div class="metric-label">{{ source.name }}</div>
+                            <div class="metric-value {% if source.completeness < 70 %}text-danger{% elif source.completeness < 90 %}text-warning{% else %}text-success{% endif %}">{{ source.completeness }}%</div>
+                            <div class="metric-sub text-muted">{{ source.records }} records</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Intervention Outcomes & Peer Sample Sizes -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <span class="section-title"><i class="bi bi-clipboard-check"></i> Intervention Outcomes</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="outcomeChart"></canvas>
+                </div>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-4">
+                        <div class="metric-card p-3 text-center">
+                            <div class="metric-value text-success">{{ outcomes.success }}</div>
+                            <div class="metric-label">Successful</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="metric-card p-3 text-center">
+                            <div class="metric-value text-warning">{{ outcomes.partial }}</div>
+                            <div class="metric-label">Partial</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="metric-card p-3 text-center">
+                            <div class="metric-value text-danger">{{ outcomes.failed }}</div>
+                            <div class="metric-label">Failed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <span class="section-title"><i class="bi bi-people"></i> Peer Sample Sizes</span>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Segment</th>
+                                <th>Sample Size</th>
+                                <th>Min Required</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for peer in peer_samples %}
+                            <tr>
+                                <td><strong>{{ peer.segment }}</strong></td>
+                                <td>{{ "{:,}".format(peer.size) }}</td>
+                                <td>{{ peer.min_required }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if peer.size >= peer.min_required else 'warning' if peer.size >= peer.min_required * 0.5 else 'danger' }}">
+                                        {{ 'Adequate' if peer.size >= peer.min_required else 'Low' if peer.size >= peer.min_required * 0.5 else 'Critical' }}
+                                    </span>
+                                </td>
+                                <td class="text-muted">{{ peer.updated }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Quality Issues -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="section-title"><i class="bi bi-exclamation-triangle"></i> Data Quality Issues</span>
+        <span class="badge bg-{{ 'danger' if critical_issues > 0 else 'warning' if warning_issues > 0 else 'success' }}">
+            {{ critical_issues }} critical, {{ warning_issues }} warnings
+        </span>
+    </div>
+    <div class="card-body">
+        {% if quality_issues %}
+            {% for issue in quality_issues %}
+            <div class="data-quality-issue {% if issue.severity == 'critical' %}critical{% endif %}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>{{ issue.source }}</strong> - {{ issue.description }}
+                        <div class="small text-muted mt-1">
+                            Affected: {{ "{:,}".format(issue.affected_records) }} records • Detected: {{ issue.detected }}
+                        </div>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="viewIssueDetails('{{ issue.id }}')">
+                            <i class="bi bi-eye"></i> Details
+                        </button>
+                        <button class="btn btn-outline-success" onclick="resolveIssue('{{ issue.id }}')" {% if issue.resolved %}disabled{% endif %}>
+                            <i class="bi bi-check"></i> Resolve
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-4">
+                <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                <h5 class="mt-2">No data quality issues</h5>
+                <p class="text-muted">All data sources are healthy</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Model Version Modal -->
+<div class="modal fade" id="modelVersionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Model Version</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="modelVersionForm">
+                    <div class="mb-3">
+                        <label class="form-label">Model</label>
+                        <select class="form-select" id="modelSelect" required>
+                            {% for model in models %}
+                            <option value="{{ model.id }}">{{ model.name }} (current: {{ model.version }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">New Version</label>
+                        <input type="text" class="form-control" id="newModelVersion" placeholder="e.g., v2.1.0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Change Summary (for audit)</label>
+                        <textarea class="form-control" id="modelChangeReason" rows="3" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitModelVersion()">
+                    <i class="bi bi-save"></i> Save (Audited)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rule Version Modal -->
+<div class="modal fade" id="ruleVersionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Rule Threshold</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ruleVersionForm">
+                    <div class="mb-3">
+                        <label class="form-label">Rule</label>
+                        <select class="form-select" id="ruleSelect" required>
+                            {% for rule in rules %}
+                            <option value="{{ rule.id }}" {% if rule.sensitive %}data-sensitive="true"{% endif %}>
+                                {{ rule.name }} (current: {{ rule.threshold }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">New Threshold</label>
+                        <input type="number" class="form-control" id="newRuleThreshold" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Change Reason (required for audit)</label>
+                        <textarea class="form-control" id="ruleChangeReason" rows="3" required></textarea>
+                    </div>
+                    <div class="form-check mb-3" id="sensitiveWarning" style="display:none;">
+                        <input class="form-check-input" type="checkbox" id="acknowledgeSensitive" required>
+                        <label class="form-check-label text-warning" for="acknowledgeSensitive">
+                            I acknowledge this is a sensitive threshold change requiring admin approval
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitRuleVersion()">
+                    <i class="bi bi-save"></i> Save (Audited)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Confidence Distribution Chart
+        const confCtx = document.getElementById('confidenceChart').getContext('2d');
+        new Chart(confCtx, {
+            type: 'bar',
+            data: {
+                labels: ['0-20%', '21-40%', '41-60%', '61-80%', '81-100%'],
+                datasets: [{
+                    label: 'Predictions',
+                    data: {{ confidence_distribution | tojson }},
+                    backgroundColor: [
+                        'rgba(220, 38, 38, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(37, 99, 235, 0.8)',
+                        'rgba(22, 163, 74, 0.8)',
+                        'rgba(8, 145, 178, 0.8)'
+                    ],
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        // Data Completeness Chart
+        const compCtx = document.getElementById('completenessChart').getContext('2d');
+        new Chart(compCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ data_source_names | tojson }},
+                datasets: [{
+                    data: {{ data_source_completeness | tojson }},
+                    backgroundColor: [
+                        'rgba(37, 99, 235, 0.8)',
+                        'rgba(22, 163, 74, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(220, 38, 38, 0.8)',
+                        'rgba(8, 145, 178, 0.8)'
+                    ],
+                    borderWidth: 0,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15 } } }
+            }
+        });
+
+        // Intervention Outcomes Chart
+        const outcomeCtx = document.getElementById('outcomeChart').getContext('2d');
+        new Chart(outcomeCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Successful', 'Partial', 'Failed'],
+                datasets: [{
+                    data: [{{ outcomes.success }}, {{ outcomes.partial }}, {{ outcomes.failed }}],
+                    backgroundColor: ['#16a34a', '#f59e0b', '#dc2626'],
+                    borderWidth: 0,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15 } } }
+            }
+        });
+
+        // Rule select change handler
+        document.getElementById('ruleSelect')?.addEventListener('change', function() {
+            const option = this.options[this.selectedIndex];
+            const sensitive = option.dataset.sensitive === 'true';
+            document.getElementById('sensitiveWarning').style.display = sensitive ? 'block' : 'none';
+            document.getElementById('acknowledgeSensitive').required = sensitive;
+        });
+    });
+
+    function activateModel(modelId) {
+        if (confirm('Activate this model version? This will be audited.')) {
+            fetch('/monitoring/models/' + modelId + '/activate', { method: 'POST' })
+                .then(r => r.json())
+                .then(() => location.reload());
+        }
+    }
+
+    function disableModel(modelId) {
+        if (confirm('Disable this model? This will be audited.')) {
+            fetch('/monitoring/models/' + modelId + '/disable', { method: 'POST' })
+                .then(r => r.json())
+                .then(() => location.reload());
+        }
+    }
+
+    function submitModelVersion() {
+        const form = document.getElementById('modelVersionForm');
+        const data = {
+            model_id: document.getElementById('modelSelect').value,
+            version: document.getElementById('newModelVersion').value,
+            reason: document.getElementById('modelChangeReason').value
+        };
+        fetch('/monitoring/models/version', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+            .then(r => r.json())
+            .then(() => { bootstrap.Modal.getInstance(document.getElementById('modelVersionModal')).hide(); location.reload(); });
+    }
+
+    function submitRuleVersion() {
+        const data = {
+            rule_id: document.getElementById('ruleSelect').value,
+            threshold: parseFloat(document.getElementById('newRuleThreshold').value),
+            reason: document.getElementById('ruleChangeReason').value
+        };
+        fetch('/monitoring/rules/threshold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+            .then(r => r.json())
+            .then(() => { bootstrap.Modal.getInstance(document.getElementById('ruleVersionModal')).hide(); location.reload(); });
+    }
+
+    function viewIssueDetails(issueId) {
+        alert('Issue details for ' + issueId + ' - would open detail modal');
+    }
+
+    function resolveIssue(issueId) {
+        if (confirm('Mark this issue as resolved?')) {
+            fetch('/monitoring/quality/' + issueId + '/resolve', { method: 'POST' })
+                .then(r => r.json())
+                .then(() => location.reload());
+        }
+    }
+</script>
+{% endblock %}

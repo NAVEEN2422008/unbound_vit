@@ -2837,3 +2837,252 @@ async def customer_detail(request: Request):
     })
 
 
+# ==============================================================================
+# 11. MONITORING & OBSERVABILITY ROUTES (Admin/Operations Interface)
+# ==============================================================================
+
+# ===========================
+# Audit Logger for Configuration Changes
+# ===========================
+AUDIT_LOG: List[Dict[str, Any]] = []
+
+def _audit_log(action: str, entity_type: str, entity_id: str, old_value: Any, new_value: Any, user: str = "admin", reason: str = ""):
+    """Log configuration changes for audit trail."""
+    entry = {
+        "id": f"AUDIT-{len(AUDIT_LOG) + 1:06d}",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "action": action,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "old_value": str(old_value),
+        "new_value": str(new_value),
+        "user": user,
+        "reason": reason,
+        "ip": "127.0.0.1"  # Would be request.client.host in production
+    }
+    AUDIT_LOG.append(entry)
+    logger.info(f"AUDIT: {action} {entity_type}:{entity_id} by {user} - {reason}")
+    return entry
+
+
+# ===========================
+# Monitoring Helpers
+# ===========================
+def _get_system_health() -> dict:
+    """Get overall system health status."""
+    return {
+        "status": "healthy",
+        "uptime_pct": 99.9,
+        "avg_latency_ms": 45,
+        "active_connections": 12,
+        "cpu_pct": 23,
+        "memory_pct": 67,
+        "disk_pct": 45
+    }
+
+
+def _get_monitoring_metrics() -> dict:
+    """Get all monitoring metrics for dashboard."""
+    try:
+        total_customers = len(SAMPLE_CUSTOMERS_DATA)
+        prediction_volume = total_customers * 4  # ~4 predictions per customer per day
+        human_review_count = sum(1 for c in SAMPLE_CUSTOMERS_DATA.values() if c.get("archetype") in ["MSME", "MANUFACTURER"])
+        
+        return {
+            "prediction_volume": prediction_volume,
+            "prediction_change": 12,
+            "human_review_pct": round(human_review_count / total_customers * 100, 1),
+            "human_review_count": human_review_count,
+            "error_count": 3,
+            "critical_errors": 0,
+            "models": [
+                {"id": "distress", "name": "Distress Predictor", "version": "v2.1.0", "status": "active", "accuracy": 92.3, "updated": "2026-08-15"},
+                {"id": "classification", "name": "Distress Classifier", "version": "v1.3.0", "status": "active", "accuracy": 88.7, "updated": "2026-07-22"},
+                {"id": "root_cause", "name": "Root Cause Analyzer", "version": "v1.0.0", "status": "staging", "accuracy": 85.2, "updated": "2026-09-01"},
+                {"id": "seasonal", "name": "Seasonal Forecaster", "version": "v1.2.0", "status": "active", "accuracy": 79.5, "updated": "2026-08-10"},
+                {"id": "peer", "name": "Peer Benchmarking", "version": "v1.1.0", "status": "active", "accuracy": 82.1, "updated": "2026-08-05"},
+                {"id": "twin", "name": "Decision Twin", "version": "v1.0.0", "status": "staging", "accuracy": 87.0, "updated": "2026-09-02"}
+            ],
+            "rules": [
+                {"id": "dscr_min", "name": "Min DSCR Threshold", "version": "v3", "threshold": 1.25, "enabled": True, "sensitive": True, "updated": "2026-08-01", "changed_by": "risk-team"},
+                {"id": "foir_max", "name": "Max FOIR Threshold", "version": "v2", "threshold": 60.0, "enabled": True, "sensitive": True, "updated": "2026-08-01", "changed_by": "risk-team"},
+                {"id": "runway_min", "name": "Min Cash Runway (days)", "version": "v1", "threshold": 30, "enabled": True, "sensitive": False, "updated": "2026-07-15", "changed_by": "ops-team"},
+                {"id": "confidence_min", "name": "Min Confidence for Auto-Approve", "version": "v2", "threshold": 80.0, "enabled": True, "sensitive": False, "updated": "2026-07-20", "changed_by": "ml-team"},
+                {"id": "peer_min_sample", "name": "Min Peer Sample Size", "version": "v1", "threshold": 5, "enabled": True, "sensitive": False, "updated": "2026-08-10", "changed_by": "data-team"}
+            ],
+            "confidence_distribution": [45, 120, 380, 650, 420],
+            "data_sources": [
+                {"name": "Bank Transactions", "completeness": 94, "records": 125000},
+                {"name": "Loan Records", "completeness": 98, "records": 45000},
+                {"name": "Receivables", "completeness": 87, "records": 32000},
+                {"name": "GSTN Filings", "completeness": 91, "records": 28000},
+                {"name": "Bureau Data", "completeness": 83, "records": 15000}
+            ],
+            "data_source_names": ["Bank Txns", "Loans", "Receivables", "GSTN", "Bureau"],
+            "data_source_completeness": [94, 98, 87, 91, 83],
+            "outcomes": {"success": 234, "partial": 67, "failed": 12},
+            "peer_samples": [
+                {"segment": "MSME Textile - Tiruppur", "size": 247, "min_required": 30, "updated": "2026-08-28"},
+                {"segment": "Seasonal Ceramics - Morbi", "size": 189, "min_required": 25, "updated": "2026-08-28"},
+                {"segment": "Gig Delivery - Bangalore", "size": 56, "min_required": 20, "updated": "2026-08-25"},
+                {"segment": "Salaried IT - Bangalore", "size": 1234, "min_required": 50, "updated": "2026-08-28"},
+                {"segment": "MSME Engineering - Ludhiana", "size": 87, "min_required": 15, "updated": "2026-08-26"}
+            ],
+            "quality_issues": [
+                {"id": "DQ-001", "source": "Receivables", "description": "Missing due_date for 12% of invoices", "severity": "warning", "affected_records": 3840, "detected": "2026-09-04T06:00:00Z", "resolved": False},
+                {"id": "DQ-002", "source": "GSTN", "description": "Duplicate invoice entries detected", "severity": "critical", "affected_records": 156, "detected": "2026-09-04T02:30:00Z", "resolved": False},
+                {"id": "DQ-003", "source": "Bank Transactions", "description": "Incomplete cash flow data for 3 customers", "severity": "warning", "affected_records": 3, "detected": "2026-09-03T22:00:00Z", "resolved": True}
+            ],
+            "critical_issues": 1,
+            "warning_issues": 2
+        }
+    except Exception as e:
+        logger.warning(f"Monitoring metrics failed: {e}")
+        return {
+            "prediction_volume": 0, "prediction_change": 0, "human_review_pct": 0,
+            "human_review_count": 0, "error_count": 0, "critical_errors": 0,
+            "models": [], "rules": [], "confidence_distribution": [],
+            "data_sources": [], "data_source_names": [], "data_source_completeness": [],
+            "outcomes": {"success": 0, "partial": 0, "failed": 0},
+            "peer_samples": [], "quality_issues": [], "critical_issues": 0, "warning_issues": 0
+        }
+
+
+# ===========================
+# Monitoring Routes
+# ===========================
+@app.get("/monitoring", response_class=HTMLResponse, tags=["Monitoring"])
+async def monitoring_root_redirect():
+    """Redirect to monitoring dashboard."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/monitoring/dashboard")
+
+
+@app.get("/monitoring/dashboard", response_class=HTMLResponse, tags=["Monitoring"])
+async def monitoring_dashboard(request: Request):
+    """Render the monitoring dashboard with all metrics."""
+    metrics = _get_monitoring_metrics()
+    api_health = _get_system_health()
+    
+    return templates.TemplateResponse("monitoring_dashboard.html", {
+        "request": request,
+        "system_health": api_health["status"],
+        "api_health": api_health,
+        "prediction_volume": metrics["prediction_volume"],
+        "prediction_change": metrics["prediction_change"],
+        "human_review_pct": metrics["human_review_pct"],
+        "human_review_count": metrics["human_review_count"],
+        "error_count": metrics["error_count"],
+        "critical_errors": metrics["critical_errors"],
+        "models": metrics["models"],
+        "rules": metrics["rules"],
+        "confidence_distribution": metrics["confidence_distribution"],
+        "data_sources": metrics["data_sources"],
+        "data_source_names": metrics["data_source_names"],
+        "data_source_completeness": metrics["data_source_completeness"],
+        "outcomes": metrics["outcomes"],
+        "peer_samples": metrics["peer_samples"],
+        "quality_issues": metrics["quality_issues"],
+        "critical_issues": metrics["critical_issues"],
+        "warning_issues": metrics["warning_issues"]
+    })
+
+
+@app.get("/monitoring/models", response_class=HTMLResponse, tags=["Monitoring"])
+async def monitoring_models(request: Request):
+    """Render the models management page."""
+    metrics = _get_monitoring_metrics()
+    return templates.TemplateResponse("monitoring_models.html", {
+        "request": request,
+        "models": metrics["models"],
+        "system_health": "healthy"
+    })
+
+
+@app.get("/monitoring/rules", response_class=HTMLResponse, tags=["Monitoring"])
+async def monitoring_rules(request: Request):
+    """Render the rules management page."""
+    metrics = _get_monitoring_metrics()
+    return templates.TemplateResponse("monitoring_rules.html", {
+        "request": request,
+        "rules": metrics["rules"],
+        "system_health": "healthy"
+    })
+
+
+@app.get("/monitoring/audit", response_class=HTMLResponse, tags=["Monitoring"])
+async def monitoring_audit(request: Request, limit: int = 100):
+    """Render the audit log page."""
+    # Get recent audit entries (in production, would query database)
+    recent_audit = AUDIT_LOG[-limit:] if AUDIT_LOG else []
+    
+    return templates.TemplateResponse("monitoring_audit.html", {
+        "request": request,
+        "audit_entries": recent_audit,
+        "system_health": "healthy"
+    })
+
+
+# ===========================
+# Monitoring API Endpoints
+# ===========================
+@app.post("/monitoring/models/{model_id}/activate", tags=["Monitoring API"])
+async def activate_model(model_id: str, request: Request):
+    """Activate a model version."""
+    # In production, would update model registry
+    _audit_log("activate", "model", model_id, "inactive", "active", "admin", "Activated via monitoring UI")
+    return {"success": True, "message": f"Model {model_id} activated"}
+
+
+@app.post("/monitoring/models/{model_id}/disable", tags=["Monitoring API"])
+async def disable_model(model_id: str, request: Request):
+    """Disable a model version."""
+    _audit_log("disable", "model", model_id, "active", "disabled", "admin", "Disabled via monitoring UI")
+    return {"success": True, "message": f"Model {model_id} disabled"}
+
+
+@app.post("/monitoring/models/version", tags=["Monitoring API"])
+async def update_model_version(data: Dict[str, Any], request: Request):
+    """Update model version with audit logging."""
+    model_id = data.get("model_id")
+    new_version = data.get("version")
+    reason = data.get("reason", "")
+    
+    # Find old version
+    metrics = _get_monitoring_metrics()
+    old_version = "unknown"
+    for m in metrics["models"]:
+        if m["id"] == model_id:
+            old_version = m["version"]
+            break
+    
+    _audit_log("version_update", "model", model_id, old_version, new_version, "admin", reason)
+    return {"success": True, "message": f"Model {model_id} updated to {new_version}"}
+
+
+@app.post("/monitoring/rules/threshold", tags=["Monitoring API"])
+async def update_rule_threshold(data: Dict[str, Any], request: Request):
+    """Update rule threshold with audit logging."""
+    rule_id = data.get("rule_id")
+    new_threshold = data.get("threshold")
+    reason = data.get("reason", "")
+    
+    # Find old threshold
+    metrics = _get_monitoring_metrics()
+    old_threshold = "unknown"
+    for r in metrics["rules"]:
+        if r["id"] == rule_id:
+            old_threshold = r["threshold"]
+            break
+    
+    _audit_log("threshold_update", "rule", rule_id, str(old_threshold), str(new_threshold), "admin", reason)
+    return {"success": True, "message": f"Rule {rule_id} threshold updated to {new_threshold}"}
+
+
+@app.post("/monitoring/quality/{issue_id}/resolve", tags=["Monitoring API"])
+async def resolve_quality_issue(issue_id: str, request: Request):
+    """Mark a data quality issue as resolved."""
+    _audit_log("resolve", "quality_issue", issue_id, "open", "resolved", "admin", "Resolved via monitoring UI")
+    return {"success": True, "message": f"Issue {issue_id} marked as resolved"}
+
+

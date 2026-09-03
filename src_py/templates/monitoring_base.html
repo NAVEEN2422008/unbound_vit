@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FINRES - System Monitoring{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --warning: #f59e0b;
+            --danger: #dc2626;
+            --info: #0891b2;
+            --light: #f8fafc;
+            --dark: #1e293b;
+            --muted: #64748b;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #f1f5f9;
+            color: var(--dark);
+        }
+        
+        .navbar {
+            background-color: white !important;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--danger) !important;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid #f1f5f9;
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            line-height: 1.2;
+        }
+        
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric-sub {
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .status-healthy { background-color: var(--success); }
+        .status-degraded { background-color: var(--warning); }
+        .status-down { background-color: var(--danger); }
+        
+        .version-badge {
+            background: #f1f5f9;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--dark);
+        }
+        
+        .threshold-input {
+            width: 120px;
+        }
+        
+        .audit-row {
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        
+        .toggle-switch .form-check-input {
+            width: 3rem;
+            height: 1.5rem;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+        
+        .small-chart {
+            height: 150px;
+        }
+        
+        .data-quality-issue {
+            padding: 0.75rem;
+            border-left: 3px solid var(--warning);
+            background: #fffbeb;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 0.5rem;
+        }
+        
+        .data-quality-issue.critical {
+            border-left-color: var(--danger);
+            background: #fef2f2;
+        }
+        
+        @media (max-width: 768px) {
+            .metric-value { font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('monitoring_dashboard') }}">
+                <i class="bi bi-activity"></i> FINRES Monitoring
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/monitoring' or request.path == '/monitoring/dashboard' %}fw-bold{% endif %}" href="{{ url_for('monitoring_dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path.startswith('/monitoring/models') %}fw-bold{% endif %}" href="{{ url_for('monitoring_models') }}">
+                            <i class="bi bi-cpu"></i> Models
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path.startswith('/monitoring/rules') %}fw-bold{% endif %}" href="{{ url_for('monitoring_rules') }}">
+                            <i class="bi bi-sliders"></i> Rules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path.startswith('/monitoring/audit') %}fw-bold{% endif %}" href="{{ url_for('monitoring_audit') }}">
+                            <i class="bi bi-journal-text"></i> Audit Log
+                        </a>
+                    </li>
+                    <li class="nav-item ms-3">
+                        <span class="badge bg-{{ 'success' if system_health == 'healthy' else 'warning' if system_health == 'degraded' else 'danger' }} ms-2">
+                            <span class="status-indicator status-{{ 'healthy' if system_health == 'healthy' else 'degraded' if system_health == 'degraded' else 'down' }}"></span>
+                            {{ system_health | title }}
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // Auto-refresh every 30 seconds
+        let autoRefresh = true;
+        setInterval(() => {
+            if (autoRefresh && !document.hidden) {
+                // Could add auto-refresh logic here
+            }
+        }, 30000);
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Toggle auto-refresh
+            const toggle = document.getElementById('autoRefreshToggle');
+            if (toggle) {
+                toggle.addEventListener('change', function() {
+                    autoRefresh = this.checked;
+                });
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

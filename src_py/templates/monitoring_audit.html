@@ -1,0 +1,166 @@
+{% extends "monitoring_base.html" %}
+
+{% block title %}FINRES - Audit Log{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Audit Log</h1>
+        <p class="text-muted">Complete history of configuration changes, model updates, and system actions</p>
+    </div>
+    <div class="d-flex gap-2">
+        <div class="input-group" style="width: 300px;">
+            <input type="text" class="form-control form-control-sm" id="auditSearch" placeholder="Search audit log...">
+            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="filterAudit()">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+        <select class="form-select form-select-sm" id="auditFilter" style="width: 180px;" onchange="filterAudit()">
+            <option value="">All Actions</option>
+            <option value="version_update">Model Version Update</option>
+            <option value="threshold_update">Rule Threshold Update</option>
+            <option value="activate">Model Activated</option>
+            <option value="disable">Model Disabled</option>
+            <option value="resolve">Issue Resolved</option>
+        </select>
+        <button class="btn btn-outline-primary btn-sm" onclick="exportAudit()">
+            <i class="bi bi-download"></i> Export
+        </button>
+    </div>
+</div>
+
+<!-- Audit Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Total Entries</div>
+            <div class="metric-value">{{ audit_entries | length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Model Changes</div>
+            <div class="metric-value text-primary">{{ audit_entries | selectattr('action', 'equalto', 'version_update') | list | length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Rule Changes</div>
+            <div class="metric-value text-warning">{{ audit_entries | selectattr('action', 'equalto', 'threshold_update') | list | length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-label">Last 24h</div>
+            <div class="metric-value text-success">{{ audit_entries | selectattr('timestamp', 'gt', (now_utc - 86400) | string) | list | length }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Audit Table -->
+<div class="card">
+    <div class="card-header">
+        <span class="section-title"><i class="bi bi-journal-text"></i> Audit Trail</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 140px;">Timestamp (UTC)</th>
+                        <th style="width: 100px;">Action</th>
+                        <th style="width: 100px;">Entity</th>
+                        <th style="width: 180px;">Old Value</th>
+                        <th style="width: 180px;">New Value</th>
+                        <th style="width: 120px;">User</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in audit_entries | reverse %}
+                    <tr class="audit-row">
+                        <td class="text-muted small">{{ entry.timestamp[:19].replace('T', ' ') }}</td>
+                        <td>
+                            <span class="badge bg-{{ 
+                                'primary' if entry.action == 'version_update' else
+                                'warning' if entry.action == 'threshold_update' else
+                                'success' if entry.action == 'activate' else
+                                'danger' if entry.action == 'disable' else
+                                'info' if entry.action == 'resolve' else
+                                'secondary' }}">
+                                {{ entry.action.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <code>{{ entry.entity_type }}:{{ entry.entity_id }}</code>
+                        </td>
+                        <td>
+                            <span class="text-muted">{{ entry.old_value | truncate(50) }}</span>
+                        </td>
+                        <td>
+                            <span class="fw-bold">{{ entry.new_value | truncate(50) }}</span>
+                        </td>
+                        <td><code>{{ entry.user }}</code></td>
+                        <td class="text-muted">{{ entry.reason | truncate(80) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if not audit_entries %}
+<div class="card mt-4">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-journal-text" style="font-size: 3rem; color: var(--muted);"></i>
+        <h5 class="mt-3">No audit entries yet</h5>
+        <p class="text-muted">Configuration changes will appear here once logged</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set global now_utc for template
+        window.now_utc = Math.floor(Date.now() / 1000);
+    });
+
+    function filterAudit() {
+        const search = document.getElementById('auditSearch').value.toLowerCase();
+        const actionFilter = document.getElementById('auditFilter').value;
+        const rows = document.querySelectorAll('tbody tr');
+
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const action = row.querySelector('td:nth-child(2) .badge')?.textContent?.toLowerCase() || '';
+            
+            const matchesSearch = search === '' || text.includes(search);
+            const matchesAction = actionFilter === '' || action.includes(actionFilter.toLowerCase());
+            
+            row.style.display = matchesSearch && matchesAction ? '' : 'none';
+        });
+    }
+
+    function exportAudit() {
+        const rows = document.querySelectorAll('tbody tr:not([style*="display: none"])');
+        let csv = 'Timestamp,Action,Entity,Old Value,New Value,User,Reason\n';
+        
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const rowData = Array.from(cells).map(cell => '"' + cell.textContent.trim().replace(/"/g, '""') + '"');
+            csv += rowData.join(',') + '\n';
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'audit-log-' + new Date().toISOString().split('T')[0] + '.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+</script>
+{% endblock %}
