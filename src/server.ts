@@ -2,6 +2,7 @@ import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import { generateCoreScenarios } from './data/generator';
+import { CustomerProfile } from './types/models';
 import { FinresDiagnosticCoordinator } from './engines/coordinator';
 import { LeastHarmOptimizer } from './engines/leastHarmOptimizer';
 import { BusinessRecoveryNetwork } from './engines/businessRecoveryNetwork';
@@ -11,15 +12,23 @@ import { GovernanceFairnessMonitor } from './engines/governanceFairnessMonitor';
 const PORT = process.env.PORT || 3000;
 const scenarios = generateCoreScenarios();
 
-// Additional realistic demo profiles matching the master prompt specifications
-const additionalProfiles = [
+// Additional realistic demo profiles conforming strictly to CustomerProfile interface
+const additionalProfiles: CustomerProfile[] = [
   {
     id: 'CUST_TEMP_LIQ_004',
     name: 'Kaveri Precision Tools LLP',
     archetype: 'MSME',
     clusterRegion: 'Ludhiana',
     occupationOrIndustry: 'Engineering & Bicycle Parts',
-    consent: { isConsented: true, dataCompletenessPercentage: 92, lastConsentTimestamp: '2026-09-01T08:00:00Z' },
+    panMasked: 'AABFK****L',
+    accountOpeningDate: '2020-03-12',
+    primaryBank: 'Punjab National Bank',
+    consent: {
+      aaConsentHandle: 'CONSENT_AA_LUDH_882',
+      status: 'ACTIVE',
+      expiryDate: '2027-03-12',
+      dataCompletenessPercentage: 92
+    },
     financialReality: {
       currentLiquidBalance: 85000,
       monthlyAverageIncome: 1450000,
@@ -40,7 +49,7 @@ const additionalProfiles = [
       { id: 'OBL_POWER_KAV', customerId: 'CUST_TEMP_LIQ_004', category: 'PSPCL Industrial Power', amount: 140000, dueDayOfMonth: 18, isMandatory: true }
     ],
     receivables: [
-      { id: 'REC_KAV_01', invoiceNumber: 'INV/2026/092', debtorName: 'Hero Cycles Tier-1 Vendor Unit', amount: 420000, dueDate: '2026-09-18', status: 'OVERDUE', isTredsEligible: true }
+      { id: 'REC_KAV_01', buyerName: 'Hero Cycles Tier-1 Vendor Unit', amount: 420000, dueDate: '2026-09-18', agingDays: 45, isTredsEligible: true }
     ],
     assets: [
       { id: 'ASSET_CNC_1', customerId: 'CUST_TEMP_LIQ_004', name: '5-Axis CNC Milling Unit', type: 'MACHINE', purchaseCost: 3500000, monthlyOperatingCost: 190000, monthlyAttributableRevenue: 340000, utilizationRatePercentage: 86, status: 'PRODUCTIVE' }
@@ -51,8 +60,16 @@ const additionalProfiles = [
     name: 'Somnath Vitrified Tiles Pvt Ltd',
     archetype: 'SEASONAL_BUSINESS',
     clusterRegion: 'Morbi',
-    occupationOrIndustry: 'Ceramics & Sanitaryware',
-    consent: { isConsented: true, dataCompletenessPercentage: 95, lastConsentTimestamp: '2026-09-01T08:00:00Z' },
+    occupationOrIndustry: 'Ceramics & Tiles',
+    panMasked: 'AALCS****G',
+    accountOpeningDate: '2018-06-20',
+    primaryBank: 'Bank of Baroda',
+    consent: {
+      aaConsentHandle: 'CONSENT_AA_MORBI_319',
+      status: 'ACTIVE',
+      expiryDate: '2027-06-20',
+      dataCompletenessPercentage: 95
+    },
     financialReality: {
       currentLiquidBalance: 320000,
       monthlyAverageIncome: 4200000,
@@ -73,7 +90,7 @@ const additionalProfiles = [
       { id: 'OBL_PAYROLL_SOM', customerId: 'CUST_SEASONAL_MORBI_005', category: 'Kiln Staff Payroll', amount: 820000, dueDayOfMonth: 7, isMandatory: true }
     ],
     receivables: [
-      { id: 'REC_SOM_01', invoiceNumber: 'INV/ST/841', debtorName: 'Kajaria Regional Depot Dealer', amount: 850000, dueDate: '2026-09-25', status: 'CURRENT', isTredsEligible: true }
+      { id: 'REC_SOM_01', buyerName: 'Kajaria Regional Depot Dealer', amount: 850000, dueDate: '2026-09-25', agingDays: 14, isTredsEligible: true }
     ],
     assets: [
       { id: 'ASSET_KILN_A', customerId: 'CUST_SEASONAL_MORBI_005', name: 'Continuous Tunnel Kiln Line 1', type: 'MACHINE', purchaseCost: 7500000, monthlyOperatingCost: 1150000, monthlyAttributableRevenue: 1950000, utilizationRatePercentage: 91, status: 'PRODUCTIVE' }
@@ -81,7 +98,7 @@ const additionalProfiles = [
   }
 ];
 
-const allCustomerProfiles = [...scenarios, ...additionalProfiles];
+const allCustomerProfiles: CustomerProfile[] = [...scenarios, ...additionalProfiles];
 
 const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -91,6 +108,72 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/profiles') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     return res.end(JSON.stringify(allCustomerProfiles));
+  }
+
+  // API Route: Banker Portfolio Summary & Risk Overview
+  if (pathname === '/api/portfolio-summary') {
+    const totalCustomers = allCustomerProfiles.length;
+    let lowRisk = 0;
+    let moderateRisk = 0;
+    let highRisk = 0;
+    let criticalRisk = 0;
+    let requiringReview = 0;
+    let upcomingCollisions = 0;
+
+    const riskTable = allCustomerProfiles.map(p => {
+      const isMorbi = p.clusterRegion === 'Morbi';
+      const drop = isMorbi ? -18.0 : -24.0;
+      const month = isMorbi ? 7 : 9;
+      const diag = FinresDiagnosticCoordinator.diagnoseCustomer(p, drop, month);
+      const opt = LeastHarmOptimizer.optimizeInterventions(p);
+
+      const score = diag.contextIntelligence.contextualDistressScore;
+      const status = diag.contextIntelligence.distressStatus;
+
+      if (status === 'CRITICAL' || score >= 75) {
+        criticalRisk++;
+        requiringReview++;
+      } else if (status === 'VULNERABLE' || score >= 50) {
+        highRisk++;
+        requiringReview++;
+      } else if (score >= 35) {
+        moderateRisk++;
+      } else {
+        lowRisk++;
+      }
+
+      const hasCollision = diag.collisionRadar.criticalLiquidityDate !== null;
+      if (hasCollision) upcomingCollisions++;
+
+      return {
+        id: p.id,
+        customerName: p.name,
+        industry: p.occupationOrIndustry,
+        region: p.clusterRegion,
+        distressScore: score,
+        distressStatus: status,
+        confidencePercentage: p.scores.confidencePercentage || 92,
+        trend: diag.contextIntelligence.customerGrowthMomPercentage < -10 ? 'DETERIORATING' : (diag.contextIntelligence.customerGrowthMomPercentage > 0 ? 'IMPROVING' : 'STABLE'),
+        primaryCause: diag.contextIntelligence.isSeasonalDip ? 'Regional Monsoon Lull' : ((p.receivables && p.receivables.length > 0) ? 'Trade Receivables Delay' : 'Excess Debt Service Burden'),
+        upcomingShortfall: diag.collisionRadar.criticalLiquidityDate || 'None in 30d',
+        recommendedIntervention: opt.recommendedOption.title,
+        guardrailStatus: opt.evidenceCard.guardrailStatus
+      };
+    });
+
+    const summary = {
+      totalCustomers,
+      lowRisk,
+      moderateRisk,
+      highRisk,
+      criticalRisk,
+      requiringReview,
+      upcomingCollisions,
+      riskTable
+    };
+
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    return res.end(JSON.stringify(summary));
   }
 
   // API Route: Run Diagnostic on Profile
@@ -549,6 +632,106 @@ function renderCoreBankingPortalHtml(): string {
       background: var(--c-navy-dark);
     }
 
+    /* Banker Portfolio Overview KPI Header Cards */
+    .portfolio-kpi-bar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+      padding: 12px 20px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--c-border-grid);
+    }
+    .kpi-card {
+      background: #f8f9fa;
+      border: 1px solid var(--c-border-grid);
+      padding: 8px 10px;
+      border-radius: 2px;
+      text-align: center;
+    }
+    .kpi-card.kpi-crit { border-top: 3px solid #b71c1c; background: #fff8f8; }
+    .kpi-card.kpi-high { border-top: 3px solid #e65100; background: #fffaf0; }
+    .kpi-card.kpi-mod { border-top: 3px solid #f57f17; }
+    .kpi-card.kpi-low { border-top: 3px solid #1b5e20; }
+    .kpi-val { font-size: 20px; font-weight: 700; font-family: var(--font-mono); }
+    .kpi-label { font-size: 10px; font-weight: 700; color: var(--c-text-muted); text-transform: uppercase; margin-top: 2px; }
+
+    /* Portfolio Risk Table View */
+    .portfolio-table-container {
+      padding: 14px 20px;
+      max-width: 1720px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .portfolio-grid-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff;
+      font-size: 11.5px;
+      border: 1px solid var(--c-border-grid);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .portfolio-grid-table th {
+      background: #002b49;
+      color: #ffffff;
+      text-align: left;
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .portfolio-grid-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--c-border-grid);
+    }
+    .portfolio-grid-table tr:hover {
+      background: #f0f4f8;
+      cursor: pointer;
+    }
+
+    /* Decision Panel Action Controls */
+    .decision-controls-card {
+      background: #fdfefe;
+      border: 1px solid #b0bec5;
+      padding: 10px;
+      border-radius: 2px;
+      margin-top: 10px;
+    }
+    .decision-btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .btn-dec {
+      padding: 7px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 2px;
+      cursor: pointer;
+      border: 1px solid var(--c-border-grid);
+      background: #f1f3f5;
+      color: #263238;
+      text-align: center;
+    }
+    .btn-dec:hover { background: #e0e0e0; }
+    .btn-dec.active { background: var(--c-navy-mid); color: #ffffff; border-color: var(--c-navy-dark); }
+    .btn-dec-approve { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
+    .btn-dec-reject { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
+    .btn-dec-modify { background: #fff8e1; color: #b78103; border-color: #ffe082; }
+    .btn-dec-data { background: #e1f5fe; color: #01579b; border-color: #81d4fa; }
+    .decision-notes-input {
+      width: 100%;
+      padding: 6px 8px;
+      font-size: 11px;
+      border: 1px solid var(--c-border-grid);
+      border-radius: 2px;
+      font-family: var(--font-base);
+      margin-bottom: 8px;
+      resize: vertical;
+      min-height: 50px;
+    }
+
     /* Footer Legal Notice */
     footer {
       background: #e9ecef;
@@ -577,33 +760,105 @@ function renderCoreBankingPortalHtml(): string {
       </div>
     </div>
     <div class="header-status">
+      <div style="display:flex; gap:6px; margin-right:12px;">
+        <button id="btn-view-portfolio" class="acc-tab active" onclick="switchMainView('PORTFOLIO')">📊 Portfolio Overview</button>
+        <button id="btn-view-detail" class="acc-tab" onclick="switchMainView('DETAIL')">🔍 Customer Detail View</button>
+      </div>
       <span class="badge-status">● SAHAMATI AA ACTIVE</span>
       <span>GSTN Invoice Link: <strong>VERIFIED</strong></span>
       <span>Officer: <strong>R. K. Sundaram (Chief Credit Officer)</strong></span>
     </div>
   </header>
 
-  <!-- Borrower Navigation & Compliance Ribbon -->
-  <nav class="subnav-ribbon">
-    <div class="customer-selector">
-      <label>Portfolio Account:</label>
-      <div class="account-tabs">
-        <button class="acc-tab active" onclick="loadAccount('CUST_MSME_TIRUPPUR_001', this)">Sri Balaji Fabrics (MSME Textile)</button>
-        <button class="acc-tab" onclick="loadAccount('CUST_TEMP_LIQ_004', this)">Kaveri Tools (Temporary Liquidity Gap)</button>
-        <button class="acc-tab" onclick="loadAccount('CUST_SEASONAL_MORBI_005', this)">Somnath Tiles (Seasonal Dip)</button>
-        <button class="acc-tab" onclick="loadAccount('CUST_SALARIED_BLR_002', this)">Ananya Sharma (Retail Salaried)</button>
-        <button class="acc-tab" onclick="loadAccount('CUST_GIG_BLR_003', this)">Ravi Kumar (Platform Delivery)</button>
+  <!-- Banker Portfolio Overview View Container -->
+  <div id="view-portfolio-container" style="display: block;">
+    <!-- Portfolio KPI Bar -->
+    <div class="portfolio-kpi-bar">
+      <div class="kpi-card">
+        <div class="kpi-val" id="kpi-total-cust">--</div>
+        <div class="kpi-label">Total Customers</div>
+      </div>
+      <div class="kpi-card kpi-low">
+        <div class="kpi-val" style="color:#1b5e20;" id="kpi-low-risk">--</div>
+        <div class="kpi-label">Low Risk</div>
+      </div>
+      <div class="kpi-card kpi-mod">
+        <div class="kpi-val" style="color:#f57f17;" id="kpi-mod-risk">--</div>
+        <div class="kpi-label">Moderate Risk</div>
+      </div>
+      <div class="kpi-card kpi-high">
+        <div class="kpi-val" style="color:#e65100;" id="kpi-high-risk">--</div>
+        <div class="kpi-label">High Risk</div>
+      </div>
+      <div class="kpi-card kpi-crit">
+        <div class="kpi-val" style="color:#b71c1c;" id="kpi-crit-risk">--</div>
+        <div class="kpi-label">Critical Risk</div>
+      </div>
+      <div class="kpi-card kpi-crit">
+        <div class="kpi-val" style="color:#b71c1c;" id="kpi-review-req">--</div>
+        <div class="kpi-label">Requiring Review</div>
+      </div>
+      <div class="kpi-card kpi-high">
+        <div class="kpi-val" style="color:#b78103;" id="kpi-collisions">--</div>
+        <div class="kpi-label">Cash-Flow Collisions</div>
       </div>
     </div>
-    <div class="compliance-indicators">
-      <span class="comp-tag">DPDP Act (2023) Section 6</span>
-      <span class="comp-tag">Prudential DSCR Floor: 1.25</span>
-      <span class="comp-tag">Double-Blind ONDC B2B</span>
-    </div>
-  </nav>
 
-  <!-- 3-Column Banking Layout -->
-  <main class="portal-workstation">
+    <!-- Customer Risk Table -->
+    <div class="portfolio-table-container">
+      <div class="panel-card">
+        <div class="panel-header" style="justify-content: space-between;">
+          <h2>Commercial Banking Customer Risk & Early Distress Table</h2>
+          <span style="font-size:11px; color:var(--c-text-muted);">Click any customer row to inspect complete 15-point diagnostic</span>
+        </div>
+        <div class="panel-content" style="padding:0;">
+          <table class="portfolio-grid-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Industry</th>
+                <th>Region</th>
+                <th>Distress Score</th>
+                <th>Confidence</th>
+                <th>Trend</th>
+                <th>Primary Cause</th>
+                <th>Upcoming Shortfall</th>
+                <th>Recommended Intervention</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="portfolio-risk-tbody">
+              <!-- Dynamically populated from /api/portfolio-summary -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer Detail View Container -->
+  <div id="view-detail-container" style="display: none;">
+    <!-- Borrower Navigation & Compliance Ribbon -->
+    <nav class="subnav-ribbon">
+      <div class="customer-selector">
+        <label>Portfolio Account:</label>
+        <div class="account-tabs">
+          <button class="acc-tab active" onclick="loadAccount('CUST_MSME_TIRUPPUR_001', this)">Sri Balaji Fabrics (MSME Textile)</button>
+          <button class="acc-tab" onclick="loadAccount('CUST_TEMP_LIQ_004', this)">Kaveri Tools (Temporary Liquidity Gap)</button>
+          <button class="acc-tab" onclick="loadAccount('CUST_SEASONAL_MORBI_005', this)">Somnath Tiles (Seasonal Dip)</button>
+          <button class="acc-tab" onclick="loadAccount('CUST_SALARIED_BLR_002', this)">Ananya Sharma (Retail Salaried)</button>
+          <button class="acc-tab" onclick="loadAccount('CUST_GIG_BLR_003', this)">Ravi Kumar (Platform Delivery)</button>
+        </div>
+      </div>
+      <div class="compliance-indicators">
+        <span class="comp-tag">DPDP Act (2023) Section 6</span>
+        <span class="comp-tag">Prudential DSCR Floor: 1.25</span>
+        <span class="comp-tag">Double-Blind ONDC B2B</span>
+      </div>
+    </nav>
+
+    <!-- 3-Column Banking Layout -->
+    <main class="portal-workstation">
     
     <!-- LEFT COLUMN: Module 1 & Module 7 (Balance Sheet & Regional Calibration) -->
     <div class="column-stack">
@@ -737,10 +992,10 @@ function renderCoreBankingPortalHtml(): string {
         </div>
       </div>
 
-      <!-- Module 19 & 25: Least-Harm Action Plan & Human Approval -->
+      <!-- Module 19 & 25: Least-Harm Action Plan & Banker Decision Panel -->
       <div class="panel-card">
         <div class="panel-header">
-          <h2>Ordered Resolution Plan</h2>
+          <h2>Resolution Strategy & Decision Panel</h2>
           <span class="tag-safe">PRUDENTIAL MANDATE</span>
         </div>
         <div class="panel-content">
@@ -748,15 +1003,34 @@ function renderCoreBankingPortalHtml(): string {
             <!-- Action steps -->
           </div>
 
-          <button class="btn-mandate" onclick="executePrudentialMandate()">
-            Approve & Execute Resolution Mandate
-          </button>
+          <!-- Interactive Banker Decision Panel -->
+          <div class="decision-controls-card">
+            <div style="font-size:11px; font-weight:700; color:var(--c-navy-dark); text-transform:uppercase; margin-bottom:6px;">
+              Banker Action Selection
+            </div>
+            <div class="decision-btn-group">
+              <button class="btn-dec btn-dec-approve active" id="btn-action-approve" onclick="selectDecisionAction('APPROVED')">✔ Approve</button>
+              <button class="btn-dec btn-dec-reject" id="btn-action-reject" onclick="selectDecisionAction('REJECTED')">✖ Reject</button>
+              <button class="btn-dec btn-dec-modify" id="btn-action-modify" onclick="selectDecisionAction('MODIFIED')">✏ Modify</button>
+              <button class="btn-dec btn-dec-data" id="btn-action-data" onclick="selectDecisionAction('REQUESTED_MORE_DATA')">📥 Request Data</button>
+            </div>
+
+            <div style="font-size:10.5px; font-weight:700; color:var(--c-text-muted); margin-bottom:4px;">
+              Intervention Notes & Supervisory Rationale:
+            </div>
+            <textarea id="officer-notes-input" class="decision-notes-input" placeholder="Enter restructuring conditions, modified terms, or additional telemetry requests..."></textarea>
+
+            <button class="btn-mandate" id="btn-submit-decision" onclick="submitBankerDecision()">
+              Record Decision to Audit Ledger
+            </button>
+          </div>
         </div>
       </div>
 
     </div>
 
   </main>
+  </div><!-- /#view-detail-container -->
 
   <!-- Institutional Compliance Footer -->
   <footer>
@@ -957,27 +1231,147 @@ function renderCoreBankingPortalHtml(): string {
       });
     }
 
-    async function executePrudentialMandate() {
+    let selectedDecisionAction = 'APPROVED';
+
+    function switchMainView(viewName) {
+      const portContainer = document.getElementById('view-portfolio-container');
+      const detailContainer = document.getElementById('view-detail-container');
+      const btnPort = document.getElementById('btn-view-portfolio');
+      const btnDetail = document.getElementById('btn-view-detail');
+
+      if (viewName === 'PORTFOLIO') {
+        portContainer.style.display = 'block';
+        detailContainer.style.display = 'none';
+        btnPort.classList.add('active');
+        btnDetail.classList.remove('active');
+        loadPortfolioSummary();
+      } else {
+        portContainer.style.display = 'none';
+        detailContainer.style.display = 'block';
+        btnPort.classList.remove('active');
+        btnDetail.classList.add('active');
+      }
+    }
+
+    async function loadPortfolioSummary() {
+      const res = await fetch('/api/portfolio-summary');
+      const summary = await res.json();
+
+      document.getElementById('kpi-total-cust').innerText = summary.totalCustomers;
+      document.getElementById('kpi-low-risk').innerText = summary.lowRisk;
+      document.getElementById('kpi-mod-risk').innerText = summary.moderateRisk;
+      document.getElementById('kpi-high-risk').innerText = summary.highRisk;
+      document.getElementById('kpi-crit-risk').innerText = summary.criticalRisk;
+      document.getElementById('kpi-review-req').innerText = summary.requiringReview;
+      document.getElementById('kpi-collisions').innerText = summary.upcomingCollisions;
+
+      const tbody = document.getElementById('portfolio-risk-tbody');
+      tbody.innerHTML = '';
+
+      summary.riskTable.forEach(row => {
+        const tr = document.createElement('tr');
+        const scoreColor = row.distressScore >= 75 ? '#b71c1c' : (row.distressScore >= 50 ? '#e65100' : (row.distressScore >= 35 ? '#f57f17' : '#1b5e20'));
+        const statusBadge = row.distressStatus === 'CRITICAL' ? 'tag-danger' : (row.distressStatus === 'VULNERABLE' ? 'tag-warning' : 'tag-safe');
+        const trendBadge = row.trend === 'DETERIORATING' ? 'style="color:#b71c1c; font-weight:700;"' : (row.trend === 'IMPROVING' ? 'style="color:#1b5e20; font-weight:700;"' : 'style="color:#546e7a;"');
+
+        tr.innerHTML = \`
+          <td>
+            <strong>\${row.customerName}</strong><br>
+            <span style="font-family:var(--font-mono); font-size:10px; color:var(--c-text-muted);">\${row.id}</span>
+          </td>
+          <td>\${row.industry}</td>
+          <td>\${row.region}</td>
+          <td>
+            <span class="\${statusBadge}">\${row.distressStatus}</span>
+            <span style="font-family:var(--font-mono); font-weight:700; color:\${scoreColor}; margin-left:4px;">\${row.distressScore}/100</span>
+          </td>
+          <td style="font-family:var(--font-mono);">\${row.confidencePercentage}%</td>
+          <td \${trendBadge}>\${row.trend}</td>
+          <td>\${row.primaryCause}</td>
+          <td style="font-family:var(--font-mono); color:\${row.upcomingShortfall !== 'None in 30d' ? '#b71c1c' : '#1b5e20'}; font-weight:700;">
+            \${row.upcomingShortfall}
+          </td>
+          <td>
+            <span style="font-weight:600; color:var(--c-navy-dark);">\${row.recommendedIntervention}</span><br>
+            <span style="font-size:10px; color:\${row.guardrailStatus.includes('VETO') ? '#b71c1c' : '#1b5e20'};">\${row.guardrailStatus}</span>
+          </td>
+          <td>
+            <button class="acc-tab" style="padding:4px 8px; font-size:10.5px;" onclick="inspectCustomerFromTable('\${row.id}')">Inspect</button>
+          </td>
+        \`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function inspectCustomerFromTable(custId) {
+      switchMainView('DETAIL');
+      const targetBtn = Array.from(document.querySelectorAll('#view-detail-container .acc-tab')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(custId));
+      loadAccount(custId, targetBtn);
+    }
+
+    function selectDecisionAction(action) {
+      selectedDecisionAction = action;
+      ['approve', 'reject', 'modify', 'data'].forEach(k => {
+        const btn = document.getElementById('btn-action-' + k);
+        if (btn) btn.classList.remove('active');
+      });
+
+      if (action === 'APPROVED') document.getElementById('btn-action-approve').classList.add('active');
+      if (action === 'REJECTED') document.getElementById('btn-action-reject').classList.add('active');
+      if (action === 'MODIFIED') document.getElementById('btn-action-modify').classList.add('active');
+      if (action === 'REQUESTED_MORE_DATA') document.getElementById('btn-action-data').classList.add('active');
+
+      const submitBtn = document.getElementById('btn-submit-decision');
+      if (action === 'APPROVED') submitBtn.innerText = 'Approve & Record Mandate';
+      else if (action === 'REJECTED') submitBtn.innerText = 'Reject & Log Supervisory Reason';
+      else if (action === 'MODIFIED') submitBtn.innerText = 'Apply Modified Plan to Ledger';
+      else if (action === 'REQUESTED_MORE_DATA') submitBtn.innerText = 'Dispatch Telemetry Information Request';
+    }
+
+    async function submitBankerDecision() {
       if (!cachedOptimization) return;
+      const notes = document.getElementById('officer-notes-input').value.trim() ||
+        (selectedDecisionAction === 'APPROVED' ? 'Approved resolution plan via FINRES portal.' : 'Action recorded by credit officer.');
+
       const res = await fetch('/api/governance/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: activeCustomerId,
-          actionTaken: 'APPROVED',
-          approvedByOfficer: 'R. K. Sundaram (Chief Credit Officer, SME Hub Tiruppur)',
+          actionTaken: selectedDecisionAction,
+          approvedByOfficer: 'R. K. Sundaram (Chief Credit Officer, Commercial Banking)',
+          officerRole: 'CREDIT_OFFICER',
           recommendedStrategy: cachedOptimization.recommendedOption.title,
           guardrailStatus: cachedOptimization.evidenceCard.guardrailStatus,
-          modificationNotes: 'Approved via FINRES Core Banking System with digital cryptographic signature.'
+          modificationNotes: notes
         })
       });
+
       const data = await res.json();
       if (data.success) {
-        alert('✅ Restructuring Plan Approved & Logged in Audit Ledger!\\n\\nAudit Reference: ' + data.record.auditId + '\\nDigital Signature: ' + data.record.digitalSignatureHash);
+        alert(
+          '🏛️ BANKER DECISION RECORDED IN AUDIT LEDGER!\\n\\n' +
+          '• Decision: ' + data.record.actionTaken + '\\n' +
+          '• Officer: ' + data.record.approvedByOfficer + '\\n' +
+          '• Customer: ' + data.record.customerId + '\\n' +
+          '• Audit ID: ' + data.record.auditId + '\\n' +
+          '• Digital Signature: ' + data.record.digitalSignatureHash + '\\n' +
+          '• Timestamp: ' + data.record.timestamp + '\\n\\n' +
+          'Compliant under RBI Master Directions on Resolution of Stressed Assets.'
+        );
+        document.getElementById('officer-notes-input').value = '';
       }
     }
 
-    window.onload = () => loadAccount('CUST_MSME_TIRUPPUR_001');
+    async function executePrudentialMandate() {
+      selectDecisionAction('APPROVED');
+      await submitBankerDecision();
+    }
+
+    window.onload = () => {
+      loadPortfolioSummary();
+      loadAccount('CUST_MSME_TIRUPPUR_001');
+    };
   </script>
 </body>
 </html>`;

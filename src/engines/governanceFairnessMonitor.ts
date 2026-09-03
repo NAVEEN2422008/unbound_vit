@@ -7,7 +7,7 @@ export interface GovernanceAuditRecord {
   auditId: string;
   timestamp: string;
   customerId: string;
-  actionTaken: 'APPROVED' | 'MODIFIED' | 'REJECTED';
+  actionTaken: 'APPROVED' | 'MODIFIED' | 'REJECTED' | 'REQUESTED_MORE_DATA';
   approvedByOfficer: string;
   officerRole: 'CREDIT_OFFICER' | 'RELATIONSHIP_MANAGER' | 'RISK_ANALYST' | 'TREDS_FACTORING_OFFICER';
   recommendedStrategy: string;
@@ -52,7 +52,7 @@ export class GovernanceFairnessMonitor {
 
   public static recordOfficerDecision(
     customerId: string,
-    actionTaken: 'APPROVED' | 'MODIFIED' | 'REJECTED',
+    actionTaken: 'APPROVED' | 'MODIFIED' | 'REJECTED' | 'REQUESTED_MORE_DATA',
     approvedByOfficer: string,
     role: 'CREDIT_OFFICER' | 'RELATIONSHIP_MANAGER' | 'RISK_ANALYST' | 'TREDS_FACTORING_OFFICER',
     strategy: string,
