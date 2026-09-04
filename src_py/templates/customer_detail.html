@@ -1,565 +1,747 @@
-{% extends "customer_base.html" %}
+{% extends "base.html" %}
 
-{% block title %}FINRES - My Financial Details{% endblock %}
+{% block title %}FINRES - Customer Deep Diagnostics: {{ detail.name }}{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-    <h1 class="h3 mb-1">My Financial Details</h1>
-    <p class="text-muted">Detailed breakdown of your financial picture</p>
-</div>
+<!-- 1. PERSISTENT CUSTOMER EXECUTIVE SUMMARY HEADER -->
+<div class="card mb-3 border-primary-subtle" style="background: linear-gradient(to right, #ffffff, #f8fafc);">
+    <div class="card-body p-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    <h1 class="h4 mb-0 fw-bold text-dark">{{ detail.name }}</h1>
+                    <span class="badge bg-dark text-light code-num">{{ detail.id }}</span>
+                    <span class="badge bg-light text-secondary border">{{ detail.archetype }}</span>
+                </div>
+                <div class="text-muted small mt-1">
+                    <i class="bi bi-geo-alt me-1"></i>{{ detail.region }} &bull; Sector: Textile & Apparel &bull; Operating Since 2018
+                </div>
+            </div>
 
-<!-- 1. Income -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-currency-rupee"></i> Income</span>
-    </div>
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Monthly Average</span>
-                    <span class="data-value text-success">+₹{{ "{:,.0f}".format(detail.income.monthly_avg) }}</span>
+            <!-- Key Underwriting Metrics Ribbon -->
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <div class="text-end border-end pe-3">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.6875rem;">Distress Risk</div>
+                    <div class="fw-bold {% if detail.distress_score >= 70 %}text-danger{% elif detail.distress_score >= 40 %}text-warning{% else %}text-success{% endif %} fs-5">
+                        {{ detail.distress_score }}/100
+                    </div>
+                </div>
+
+                <div class="text-end border-end pe-3">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.6875rem;">Resilience Score</div>
+                    <div class="fw-bold text-primary fs-5">{{ detail.resilience_score }}/100</div>
+                </div>
+
+                <div class="text-end border-end pe-3">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.6875rem;">Liquid Cash Runway</div>
+                    <div class="fw-bold {% if detail.cash_runway_days < 20 %}text-danger{% else %}text-success{% endif %} fs-5">
+                        {{ detail.cash_runway_days }} Days
+                    </div>
+                </div>
+
+                <div class="text-end">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.6875rem;">Next Collision</div>
+                    <div class="fw-bold text-danger fs-5">{{ detail.next_collision_days }} Days</div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Business Revenue</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.income.business_revenue) }}</span>
-                </div>
+        </div>
+
+        <!-- Primary Diagnosed Problem Alert Ribbon -->
+        <div class="mt-3 pt-2 border-top d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="small">
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold me-2">
+                    <i class="bi bi-exclamation-octagon me-1"></i>Primary Diagnostic Signal
+                </span>
+                <span class="text-secondary fw-semibold">{{ detail.root_cause }}</span>
             </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Salary / Wages</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.income.salary) }}</span>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Other Income</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.income.other) }}</span>
-                </div>
-            </div>
-            <div class="col-12">
-                <div class="chart-container" style="height: 150px;">
-                    <canvas id="incomeChart"></canvas>
-                </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-secondary border">Model Confidence: <strong>{{ detail.confidence }}%</strong> (36-Mo History)</span>
+                <button type="button" class="btn btn-sm btn-primary" onclick="switchTab('twin')">
+                    <i class="bi bi-shuffle me-1"></i> Simulate Interventions
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 2. Expenses -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-cash-stack"></i> Expenses</span>
-    </div>
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Monthly Total</span>
-                    <span class="data-value text-danger">-₹{{ "{:,.0f}".format(detail.expenses.monthly_total) }}</span>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Essential Expenses</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.essential) }}</span>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Housing / Rent</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.housing) }}</span>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Utilities</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.utilities) }}</span>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Food & Groceries</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.food) }}</span>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Transport</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.transport) }}</span>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="data-row">
-                    <span class="data-label">Discretionary</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.expenses.discretionary) }}</span>
-                </div>
-            </div>
-            <div class="col-12">
-                <div class="chart-container" style="height: 150px;">
-                    <canvas id="expenseBreakdownChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- 2. MODULAR WORKFLOW TAB NAVIGATION -->
+<ul class="nav nav-tabs mb-3" id="diagnosticTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-semibold" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+            <i class="bi bi-speedometer2 me-1"></i> Financial Reality (FRE)
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="cashflow-tab" data-bs-toggle="tab" data-bs-target="#cashflow" type="button" role="tab">
+            <i class="bi bi-activity me-1"></i> Cash Flow & Radar
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="rootcause-tab" data-bs-toggle="tab" data-bs-target="#rootcause" type="button" role="tab">
+            <i class="bi bi-diagram-3 me-1"></i> Root Cause & Context
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="assets-tab" data-bs-toggle="tab" data-bs-target="#assets" type="button" role="tab">
+            <i class="bi bi-cpu me-1"></i> Asset Intelligence
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="receivables-tab" data-bs-toggle="tab" data-bs-target="#receivables" type="button" role="tab">
+            <i class="bi bi-receipt me-1"></i> Receivables & Guardrails
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold text-primary" id="twin-tab" data-bs-toggle="tab" data-bs-target="#twin" type="button" role="tab">
+            <i class="bi bi-sliders me-1"></i> Decision Twin Simulator
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="recommendations-tab" data-bs-toggle="tab" data-bs-target="#recommendations" type="button" role="tab">
+            <i class="bi bi-lightbulb me-1"></i> Decision Guidance
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit" type="button" role="tab">
+            <i class="bi bi-shield-check me-1"></i> Audit Trail
+        </button>
+    </li>
+</ul>
 
-<!-- 3. Cash Flow -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-activity"></i> Cash Flow</span>
-    </div>
-    <div class="card-body">
+<!-- 3. TAB CONTENT PANELS -->
+<div class="tab-content" id="diagnosticTabContent">
+    
+    <!-- TAB 1: FINANCIAL REALITY (FRE) -->
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
         <div class="row g-3 mb-3">
-            <div class="col-md-4">
-                <div class="data-row">
-                    <span class="data-label">This Month Net</span>
-                    <span class="data-value {% if detail.cashflow.this_month_net > 0 %}text-success{% else %}text-danger{% endif %}">{{ detail.cashflow.this_month_net > 0 and '+' or '' }}{{ "{:,.0f}".format(detail.cashflow.this_month_net) }}</span>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-panel">
+                    <div class="kpi-label">Monthly Gross Revenue</div>
+                    <div class="kpi-value text-success">+₹{{ "{:,.0f}".format(detail.income.monthly_avg) }}</div>
+                    <div class="kpi-subtext">Business Revenue: ₹{{ "{:,.0f}".format(detail.income.business_revenue) }}</div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="data-row">
-                    <span class="data-label">30-Day Forecast</span>
-                    <span class="data-value {% if detail.cashflow.thirty_day_forecast > 0 %}text-success{% else %}text-danger{% endif %}">{{ detail.cashflow.thirty_day_forecast > 0 and '+' or '' }}{{ "{:,.0f}".format(detail.cashflow.thirty_day_forecast) }}</span>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-panel">
+                    <div class="kpi-label">Monthly Operating Expenses</div>
+                    <div class="kpi-value text-danger">-₹{{ "{:,.0f}".format(detail.expenses.monthly_total) }}</div>
+                    <div class="kpi-subtext">Essential: ₹{{ "{:,.0f}".format(detail.expenses.essential) }}</div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="data-row">
-                    <span class="data-label">Lowest Point</span>
-                    <span class="data-value text-danger">₹{{ "{:,.0f}".format(detail.cashflow.lowest_point) }}</span>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-panel">
+                    <div class="kpi-label">Active Debt Obligations (EMI)</div>
+                    <div class="kpi-value text-primary">₹{{ "{:,.0f}".format(detail.loans | sum(attribute='emi')) }}</div>
+                    <div class="kpi-subtext">{{ detail.loans | length }} Active Term Facilities</div>
                 </div>
             </div>
-        </div>
-        <div class="chart-container">
-            <canvas id="cashflowDetailChart"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- 4. Loans -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-credit-card"></i> Loans & EMIs</span>
-    </div>
-    <div class="card-body">
-        {% if detail.loans %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>Loan</th>
-                        <th>Type</th>
-                        <th>Outstanding</th>
-                        <th>Monthly EMI</th>
-                        <th>Rate</th>
-                        <th>Remaining</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for loan in detail.loans %}
-                    <tr>
-                        <td>
-                            <strong>{{ loan.name }}</strong><br>
-                            <small class="text-muted">{{ loan.lender }}</small>
-                        </td>
-                        <td><span class="badge bg-secondary">{{ loan.type }}</span></td>
-                        <td class="fw-bold">₹{{ "{:,.0f}".format(loan.outstanding) }}</td>
-                        <td class="fw-bold text-primary">₹{{ "{:,.0f}".format(loan.emi) }}</td>
-                        <td>{{ loan.rate }}%</td>
-                        <td>{{ loan.months_remaining }} months</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="data-row mt-3">
-            <span class="data-label">Total Monthly EMIs</span>
-            <span class="data-value text-primary fw-bold">₹{{ "{:,.0f}".format(detail.loans | sum(attribute='emi')) }}</span>
-        </div>
-        {% else %}
-        <div class="empty-state">
-            <i class="bi bi-check-circle text-success"></i>
-            <h5>No active loans</h5>
-            <p>You don't have any outstanding loans right now.</p>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- 5. Receivables -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-receipt"></i> Money Owed to You (Receivables)</span>
-    </div>
-    <div class="card-body">
-        {% if detail.receivables %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>From</th>
-                        <th>Amount</th>
-                        <th>Due Date</th>
-                        <th>Days Overdue</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for rec in detail.receivables %}
-                    <tr>
-                        <td>
-                            <strong>{{ rec.buyer }}</strong>
-                        </td>
-                        <td class="fw-bold text-success">₹{{ "{:,.0f}".format(rec.amount) }}</td>
-                        <td>{{ rec.due_date }}</td>
-                        <td>
-                            {% if rec.days_overdue > 0 %}
-                                <span class="badge bg-danger">{{ rec.days_overdue }} days</span>
-                            {% else %}
-                                <span class="badge bg-success">Not due</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span class="badge bg-{{ 'success' if rec.status == 'CURRENT' else 'warning' if rec.status == 'DUE_SOON' else 'danger' }}">
-                                {{ rec.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="data-row mt-3">
-            <span class="data-label">Total Expected This Month</span>
-            <span class="data-value text-success fw-bold">+₹{{ "{:,.0f}".format(detail.receivables | sum(attribute='amount')) }}</span>
-        </div>
-        {% else %}
-        <div class="empty-state">
-            <i class="bi bi-inbox"></i>
-            <h5>No receivables</h5>
-            <p>No one currently owes you money.</p>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- 6. Business Revenue -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-briefcase"></i> Business Revenue</span>
-    </div>
-    <div class="card-body">
-        <div class="row g-3 mb-3">
-            <div class="col-md-4">
-                <div class="data-row">
-                    <span class="data-label">This Month</span>
-                    <span class="data-value text-success">₹{{ "{:,.0f}".format(detail.business.this_month) }}</span>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="data-row">
-                    <span class="data-label">Last Month</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(detail.business.last_month) }}</span>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="data-row">
-                    <span class="data-label">Trend</span>
-                    <span class="data-value {% if detail.business.trend > 0 %}text-success{% elif detail.business.trend < 0 %}text-danger{% else %}text-muted{% endif %}">
-                        {% if detail.business.trend > 0 %}+{% endif %}{{ detail.business.trend }}%
-                    </span>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-panel">
+                    <div class="kpi-label">Net Operating Cashflow</div>
+                    <div class="kpi-value {% if detail.cashflow.this_month_net > 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ detail.cashflow.this_month_net > 0 and '+' or '' }}₹{{ "{:,.0f}".format(detail.cashflow.this_month_net) }}
+                    </div>
+                    <div class="kpi-subtext">Post-debt service monthly balance</div>
                 </div>
             </div>
         </div>
-        <div class="chart-container" style="height: 150px;">
-            <canvas id="businessChart"></canvas>
-        </div>
-    </div>
-</div>
 
-<!-- 7. Assets -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-tools"></i> Assets & Equipment</span>
-    </div>
-    <div class="card-body">
-        {% if detail.assets %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>Asset</th>
-                        <th>Type</th>
-                        <th>Value</th>
-                        <th>Monthly Income</th>
-                        <th>Monthly Cost</th>
-                        <th>Net Benefit</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for asset in detail.assets %}
-                    <tr>
-                        <td>
-                            <strong>{{ asset.name }}</strong>
-                        </td>
-                        <td><span class="badge bg-secondary">{{ asset.type }}</span></td>
-                        <td>₹{{ "{:,.0f}".format(asset.value) }}</td>
-                        <td class="text-success">+₹{{ "{:,.0f}".format(asset.monthly_income) }}</td>
-                        <td class="text-danger">-₹{{ "{:,.0f}".format(asset.monthly_cost) }}</td>
-                        <td class="fw-bold {% if asset.net_monthly > 0 %}text-success{% else %}text-danger{% endif %}">
-                            {{ asset.net_monthly > 0 and '+' or '' }}₹{{ "{:,.0f}".format(asset.net_monthly) }}
-                        </td>
-                        <td>
-                            <span class="badge bg-{{ 'success' if asset.status == 'PRODUCTIVE' else 'warning' if asset.status == 'MARGINAL' else 'danger' }}">
-                                {{ asset.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="empty-state">
-            <i class="bi bi-box"></i>
-            <h5>No business assets</h5>
-            <p>No equipment or machinery registered.</p>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- 8. Seasonality -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-sun"></i> Seasonal Patterns</span>
-    </div>
-    <div class="card-body">
-        <div class="row g-3 mb-3">
-            <div class="col-md-6">
-                <p class="text-muted mb-1">Your industry typically sees:</p>
-                <ul class="small text-muted">
-                    <li><strong>Peak months:</strong> {{ detail.seasonality.peak_months }}</li>
-                    <li><strong>Lean months:</strong> {{ detail.seasonality.lean_months }}</li>
-                    <li><strong>Current period:</strong> <span class="badge bg-{{ 'success' if detail.seasonality.current_period == 'peak' else 'warning' if detail.seasonality.current_period == 'normal' else 'danger' }}">{{ detail.seasonality.current_period | title }}</span></li>
-                </ul>
-            </div>
-            <div class="col-md-6">
-                <p class="text-muted mb-1">What this means for you:</p>
-                <p class="small">{{ detail.seasonality.advice }}</p>
-            </div>
-        </div>
-        <div class="chart-container" style="height: 150px;">
-            <canvas id="seasonalityChart"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- 9. Industry Benchmark -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-people"></i> How You Compare</span>
-    </div>
-    <div class="card-body">
         <div class="row g-3">
-            <div class="col-md-6">
-                <h6 class="fw-bold mb-3">Your Business vs Similar Businesses</h6>
-                {% for metric in detail.benchmark %}
-                <div class="data-row">
-                    <span class="data-label">{{ metric.name }}</span>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="progress flex-grow-1" style="height: 6px;">
-                            <div class="progress-bar bg-{{ 'success' if metric.position == 'above' else 'warning' if metric.position == 'average' else 'danger' }}" style="width: {{ metric.percentile }}%"></div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-bar-chart me-1"></i> Monthly Inflow Composition</span>
+                    </div>
+                    <div class="card-body">
+                        <div style="height: 200px;">
+                            <canvas id="incomeChart"></canvas>
                         </div>
-                        <span class="small {% if metric.position == 'above' %}text-success{% elif metric.position == 'below' %}text-danger{% else %}text-muted{% endif %} fw-bold">
-                            {{ metric.position | title }}
-                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-pie-chart me-1"></i> Cost Structure Breakdown</span>
+                    </div>
+                    <div class="card-body">
+                        <div style="height: 200px;">
+                            <canvas id="expenseBreakdownChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: CASH FLOW & COLLISION RADAR -->
+    <div class="tab-pane fade" id="cashflow" role="tabpanel">
+        <div class="card mb-3">
+            <div class="card-header">
+                <span><i class="bi bi-activity me-1"></i> 30-Day Liquidity Trajectory & Obligation Collision Horizon</span>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Lowest Point: ₹{{ "{:,.0f}".format(detail.cashflow.lowest_point) }} (Day 18)</span>
+            </div>
+            <div class="card-body">
+                <div style="height: 240px;">
+                    <canvas id="cashflowDetailChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <span><i class="bi bi-calendar-event me-1"></i> Upcoming Collision Breakdown</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Due In</th>
+                                    <th>Obligation Name</th>
+                                    <th>Type</th>
+                                    <th class="text-end">Amount Due</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="status-badge status-critical">Day 12</span></td>
+                                    <td><strong>Capex Loan EMI</strong></td>
+                                    <td>Term Loan</td>
+                                    <td class="text-end fw-bold text-danger">₹45,000</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="status-badge status-high">Day 15</span></td>
+                                    <td><strong>Yarn Supplier Invoices</strong></td>
+                                    <td>Trade Payable</td>
+                                    <td class="text-end fw-bold text-danger">₹75,000</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="status-badge status-safe">Day 25</span></td>
+                                    <td><strong>Buyer B Expected Receipt</strong></td>
+                                    <td>Trade Receivable</td>
+                                    <td class="text-end fw-bold text-success">+₹2,80,000</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <span><i class="bi bi-shield-exclamation me-1"></i> Collision Risk Briefing</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="p-3 bg-danger-subtle rounded border border-danger-subtle mb-3">
+                            <h6 class="fw-bold text-danger mb-1"><i class="bi bi-clock-history me-1"></i> 13-Day Timing Mismatch Identified</h6>
+                            <p class="small text-danger mb-0">
+                                ₹1,20,000 in mandatory payments are due on Day 12 & 15, but ₹2,80,000 in buyer collections does not arrive until Day 25. Liquid buffer (₹1.45L) will be depleted below safety threshold.
+                            </p>
+                        </div>
+                        <div class="small text-secondary">
+                            <strong>Recommended Bridge:</strong> Temporary Working Capital restructuring or 15-day invoice discounting rather than an expensive multi-year loan.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: ROOT CAUSE & CONTEXT INTELLIGENCE -->
+    <div class="tab-pane fade" id="rootcause" role="tabpanel">
+        <div class="row g-3 mb-3">
+            <div class="col-lg-7">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-diagram-3 me-1"></i> Comparative Performance Analysis</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="table align-middle mb-3">
+                            <thead>
+                                <tr>
+                                    <th>Cohort Dimension</th>
+                                    <th>Revenue Delta (QoQ)</th>
+                                    <th>Diagnostic Verdict</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>This Customer (Sri Balaji)</strong></td>
+                                    <td class="fw-bold text-danger">{{ detail.context_summary.customer_delta }}%</td>
+                                    <td><span class="status-badge status-critical">Severe Drop</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Textile Industry Average</strong></td>
+                                    <td class="fw-bold text-secondary">{{ detail.context_summary.industry_delta }}%</td>
+                                    <td><span class="status-badge status-moderate">Cyclic Dip</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Tiruppur Cluster Peers (247 MSMEs)</strong></td>
+                                    <td class="fw-bold text-secondary">{{ detail.context_summary.peers_delta }}%</td>
+                                    <td><span class="status-badge status-moderate">Seasonal Normal</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="p-3 bg-light rounded border">
+                            <div class="fw-semibold text-dark mb-1"><i class="bi bi-info-circle text-primary me-1"></i> Context Verdict:</div>
+                            <div class="text-secondary small">{{ detail.context_summary.verdict }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-sun me-1"></i> Seasonal Revenue Baseline vs Actual</span>
+                    </div>
+                    <div class="card-body">
+                        <div style="height: 200px;">
+                            <canvas id="seasonalityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span><i class="bi bi-people me-1"></i> Peer Benchmark Percentile Rankings</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for metric in detail.benchmark %}
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small fw-semibold">{{ metric.name }}</span>
+                                <span class="small fw-bold {% if metric.position == 'above' %}text-success{% elif metric.position == 'below' %}text-danger{% else %}text-muted{% endif %}">
+                                    {{ metric.position | title }} ({{ metric.percentile }}th)
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-{{ 'success' if metric.position == 'above' else 'warning' if metric.position == 'average' else 'danger' }}" style="width: {{ metric.percentile }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: ASSET INTELLIGENCE -->
+    <div class="tab-pane fade" id="assets" role="tabpanel">
+        <div class="card mb-3">
+            <div class="card-header">
+                <span><i class="bi bi-cpu me-1"></i> Commercial Assets & Production Equipment</span>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">1 Unprofitable Asset Identified</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Asset Name</th>
+                            <th>Category</th>
+                            <th class="text-end">Asset Value</th>
+                            <th class="text-end">Monthly Revenue</th>
+                            <th class="text-end">Operating Cost</th>
+                            <th class="text-end">Net Contribution</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asset in detail.assets %}
+                        <tr class="{% if asset.status == 'LOSS_MAKING' %}table-danger-subtle{% endif %}">
+                            <td>
+                                <strong>{{ asset.name }}</strong>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ asset.type }}</span></td>
+                            <td class="text-end tabular-nums">₹{{ "{:,.0f}".format(asset.value) }}</td>
+                            <td class="text-end tabular-nums text-success">+₹{{ "{:,.0f}".format(asset.monthly_income) }}</td>
+                            <td class="text-end tabular-nums text-danger">-₹{{ "{:,.0f}".format(asset.monthly_cost) }}</td>
+                            <td class="text-end tabular-nums fw-bold {% if asset.net_monthly > 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ asset.net_monthly > 0 and '+' or '' }}₹{{ "{:,.0f}".format(asset.net_monthly) }}
+                            </td>
+                            <td class="text-center">
+                                <span class="status-badge status-{{ 'low' if asset.status == 'PRODUCTIVE' else 'high' }}">
+                                    {{ asset.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card border-danger-subtle">
+            <div class="card-body">
+                <h6 class="fw-bold text-danger mb-2"><i class="bi bi-exclamation-triangle me-1"></i> Asset Drain Diagnostic: Knitting Unit (Machine C)</h6>
+                <p class="small text-secondary mb-2">
+                    Operating costs (₹42,000/mo in electricity and repairs) exceed monthly revenue contribution (₹18,000/mo), creating an annual operational drag of <strong>-₹2,88,000</strong>.
+                </p>
+                <div class="small">
+                    <strong>Underwriter Strategy:</strong> Recommending asset disposal or equipment retrofit to immediately restore ₹24,000/mo in net margin without affecting core weaving volume.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 5: RECEIVABLES & CREDIT GUARDRAILS -->
+    <div class="tab-pane fade" id="receivables" role="tabpanel">
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-receipt me-1"></i> Outstanding Trade Receivables</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Buyer Entity</th>
+                                    <th class="text-end">Invoice Amount</th>
+                                    <th>Due Date</th>
+                                    <th>Aging</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rec in detail.receivables %}
+                                <tr>
+                                    <td><strong>{{ rec.buyer }}</strong></td>
+                                    <td class="text-end fw-bold text-success tabular-nums">₹{{ "{:,.0f}".format(rec.amount) }}</td>
+                                    <td class="code-num">{{ rec.due_date }}</td>
+                                    <td>
+                                        {% if rec.days_overdue > 0 %}
+                                            <span class="status-badge status-high">{{ rec.days_overdue }}d Overdue</span>
+                                        {% else %}
+                                            <span class="status-badge status-low">Current</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ 'danger' if rec.status == 'OVERDUE' else 'success' }}">{{ rec.status }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-shield-lock me-1"></i> Credit Affordability & Loan Guardrails</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="p-3 bg-danger-subtle rounded border border-danger-subtle mb-3">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="status-badge status-critical"><i class="bi bi-x-octagon"></i> NO-NEW-LOAN GUARDRAIL ACTIVE</span>
+                            </div>
+                            <p class="small text-danger mb-0">
+                                Current Debt Service Coverage Ratio (DSCR: 0.82) is below statutory minimum threshold (1.25). Issuing additional unbacked debt will accelerate default.
+                            </p>
+                        </div>
+                        <div class="small text-secondary">
+                            <h6 class="fw-semibold text-dark mb-1">Approved Alternatives:</h6>
+                            <ul class="mb-0 ps-3">
+                                <li>Term Extension of Existing Capex Loan (rebalances DSCR to 1.48)</li>
+                                <li>Receivable Discounting on Buyer B Verified Invoice</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 6: DECISION TWIN SIMULATOR -->
+    <div class="tab-pane fade" id="twin" role="tabpanel">
+        <div class="card mb-3">
+            <div class="card-header">
+                <span><i class="bi bi-sliders me-1"></i> Multi-Scenario Least-Harm Decision Matrix</span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle">Least-Harm Optimizer Active</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Candidate Intervention Scenario</th>
+                            <th class="text-end">Net Monthly Cashflow</th>
+                            <th class="text-center">Projected DSCR</th>
+                            <th class="text-center">Distress Score</th>
+                            <th class="text-center">Resilience</th>
+                            <th>Residual Risk</th>
+                            <th class="text-end">Optimizer Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for scen in detail.simulated_scenarios %}
+                        <tr class="{% if scen.recommended %}table-success-subtle border-start border-success border-3{% endif %}">
+                            <td>
+                                <div class="fw-bold text-dark">
+                                    {{ scen.name }}
+                                    {% if scen.recommended %}<span class="badge bg-success ms-1"><i class="bi bi-check-circle me-1"></i>#1 Recommended</span>{% endif %}
+                                </div>
+                                <div class="text-muted small">{{ scen.summary }}</div>
+                            </td>
+                            <td class="text-end fw-bold tabular-nums {% if scen.net_cashflow > 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ scen.net_cashflow > 0 and '+' or '' }}₹{{ "{:,.0f}".format(scen.net_cashflow) }}
+                            </td>
+                            <td class="text-center code-num fw-bold {% if scen.dscr >= 1.25 %}text-success{% else %}text-danger{% endif %}">
+                                {{ scen.dscr }}
+                            </td>
+                            <td class="text-center fw-bold {% if scen.distress < 50 %}text-success{% else %}text-danger{% endif %}">
+                                {{ scen.distress }}/100
+                            </td>
+                            <td class="text-center fw-bold text-primary">
+                                {{ scen.resilience }}/100
+                            </td>
+                            <td>
+                                <span class="status-badge status-{{ 'safe' if scen.risk == 'LOW' else 'moderate' if scen.risk == 'MODERATE' else 'critical' }}">
+                                    {{ scen.risk }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                {% if scen.recommended %}
+                                    <button class="btn btn-sm btn-success fw-semibold" onclick="alert('Working Capital Restructure Plan Generated for Credit Committee.')">
+                                        <i class="bi bi-check2-circle me-1"></i> Apply Plan
+                                    </button>
+                                {% else %}
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="alert('Scenario simulation details loaded.')">
+                                        Inspect
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 7: DECISION GUIDANCE & INTERVENTIONS -->
+    <div class="tab-pane fade" id="recommendations" role="tabpanel">
+        <div class="row g-3">
+            <div class="col-lg-8">
+                {% for rec in detail.recommendations %}
+                <div class="card mb-3 border-start border-primary border-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-primary-subtle text-primary border fw-semibold text-uppercase">Decision Support Directive</span>
+                            <span class="badge bg-light text-secondary border">Confidence: <strong>{{ rec.confidence }}%</strong></span>
+                        </div>
+                        <h6 class="fw-bold text-dark mb-1">{{ rec.what }}</h6>
+                        <div class="text-secondary small mb-3"><strong>Accounting Cause:</strong> {{ rec.why }}</div>
+                        <div class="p-3 bg-light rounded border mb-3">
+                            <div class="small fw-semibold text-dark"><i class="bi bi-arrow-right-circle text-primary me-1"></i> Recommended Underwriter Action:</div>
+                            <div class="small text-secondary mt-1">{{ rec.action }}</div>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="alert('Escalated to branch underwriter.')">Request More Data</button>
+                            <button class="btn btn-sm btn-primary" onclick="alert('Intervention Approved and Logged in Immutable Audit.')">Approve Intervention</button>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-            <div class="col-md-6">
-                <div class="p-3 bg-light rounded">
-                    <h6 class="fw-bold mb-2">Key Insight</h6>
-                    <p class="small text-muted mb-0">{{ detail.benchmark_insight }}</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- 10. Recommendations -->
-<div class="card mb-4">
-    <div class="card-header">
-        <span class="section-title"><i class="bi bi-lightbulb"></i> Personalized Recommendations</span>
-    </div>
-    <div class="card-body">
-        {% for rec in detail.recommendations %}
-        <div class="recommendation-card {{ rec.urgency }}">
-            <div class="rec-section">
-                <div class="rec-label">What's Happening</div>
-                <div class="rec-text">{{ rec.what }}</div>
-            </div>
-            <div class="rec-section">
-                <div class="rec-label">Why</div>
-                <div class="rec-text">{{ rec.why }}</div>
-            </div>
-            <div class="rec-section">
-                <div class="rec-label">What You Can Do</div>
-                <div class="rec-text">{{ rec.action }}</div>
-            </div>
-            <div class="rec-section">
-                <div class="rec-label d-flex justify-content-between align-items-center">
-                    Confidence
-                    <span class="badge bg-light text-dark">{{ rec.confidence }}%</span>
-                </div>
-                <div class="confidence-meter">
-                    <div class="confidence-fill bg-{{ 'success' if rec.confidence >= 80 else 'warning' if rec.confidence >= 50 else 'danger' }}" style="width: {{ rec.confidence }}%"></div>
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <span><i class="bi bi-shield-check me-1"></i> Underwriter Decision Controls</span>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-success w-100 mb-2 fw-semibold" onclick="alert('Restructuring terms dispatched to customer.')">
+                            <i class="bi bi-check2-circle me-1"></i> Approve Restructure (Tenure +24m)
+                        </button>
+                        <button class="btn btn-outline-primary w-100 mb-2" onclick="alert('Buyer invoice discounting quote issued.')">
+                            <i class="bi bi-receipt me-1"></i> Issue Invoice Discounting
+                        </button>
+                        <button class="btn btn-outline-secondary w-100" onclick="alert('Customer escalated to credit committee.')">
+                            <i class="bi bi-people me-1"></i> Escalate to Credit Committee
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
-        {% endfor %}
     </div>
+
+    <!-- TAB 8: AUDIT TRAIL -->
+    <div class="tab-pane fade" id="audit" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <span><i class="bi bi-file-earmark-lock me-1"></i> Immutable Audit Trail (DPDP Compliant)</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Actor / Service</th>
+                            <th>Action Performed</th>
+                            <th>Diagnostic Audit Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in detail.audit_history %}
+                        <tr>
+                            <td class="code-num">{{ entry.timestamp }}</td>
+                            <td><span class="badge bg-secondary">{{ entry.actor }}</span></td>
+                            <td class="fw-semibold text-dark">{{ entry.action }}</td>
+                            <td class="small text-secondary">{{ entry.notes }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    function switchTab(tabId) {
+        const tabEl = document.getElementById(tabId + '-tab');
+        if (tabEl) {
+            const tab = new bootstrap.Tab(tabEl);
+            tab.show();
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         // Income Chart
-        const incomeCtx = document.getElementById('incomeChart').getContext('2d');
-        new Chart(incomeCtx, {
-            type: 'bar',
-            data: {
-                labels: {{ detail.income.labels | tojson }},
-                datasets: [{
-                    label: 'Monthly Income',
-                    data: {{ detail.income.values | tojson }},
-                    backgroundColor: 'rgba(22, 163, 74, 0.8)',
-                    borderRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
-            }
-        });
-
-        // Expense Breakdown Chart
-        const expenseBreakdownCtx = document.getElementById('expenseBreakdownChart').getContext('2d');
-        new Chart(expenseBreakdownCtx, {
-            type: 'doughnut',
-            data: {
-                labels: {{ detail.expenses.breakdown_labels | tojson }},
-                datasets: [{
-                    data: {{ detail.expenses.breakdown_values | tojson }},
-                    backgroundColor: ['#dc2626', '#f59e0b', '#0891b2', '#7c3aed', '#ec4899', '#16a34a'],
-                    borderWidth: 0,
-                    borderRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { size: 11 } } } }
-            }
-        });
-
-        // Cash Flow Detail Chart
-        const cashflowDetailCtx = document.getElementById('cashflowDetailChart').getContext('2d');
-        new Chart(cashflowDetailCtx, {
-            type: 'line',
-            data: {
-                labels: {{ detail.cashflow.labels | tojson }},
-                datasets: [
-                    {
-                        label: 'Projected Balance',
-                        data: {{ detail.cashflow.balances | tojson }},
-                        borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        borderWidth: 2
-                    },
-                    {
-                        label: 'Zero Line',
-                        data: {{ detail.cashflow.zeros | tojson }},
-                        borderColor: '#94a3b8',
-                        borderWidth: 1,
-                        borderDash: [5, 5],
-                        pointRadius: 0,
-                        fill: false
+        const incomeCtx = document.getElementById('incomeChart');
+        if (incomeCtx) {
+            new Chart(incomeCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: {{ detail.income.labels | tojson }},
+                    datasets: [{
+                        data: {{ detail.income.values | tojson }},
+                        backgroundColor: '#10b981',
+                        borderRadius: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: '#f1f5f9' }, beginAtZero: true }
                     }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } },
-                scales: { y: { ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
-            }
-        });
+                }
+            });
+        }
 
-        // Business Revenue Chart
-        const businessCtx = document.getElementById('businessChart').getContext('2d');
-        new Chart(businessCtx, {
-            type: 'bar',
-            data: {
-                labels: {{ detail.business.labels | tojson }},
-                datasets: [{
-                    label: 'Revenue',
-                    data: {{ detail.business.values | tojson }},
-                    backgroundColor: 'rgba(37, 99, 235, 0.8)',
-                    borderRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
-            }
-        });
+        // Expense Donut Chart
+        const expenseCtx = document.getElementById('expenseBreakdownChart');
+        if (expenseCtx) {
+            new Chart(expenseCtx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: {{ detail.expenses.breakdown_labels | tojson }},
+                    datasets: [{
+                        data: {{ detail.expenses.breakdown_values | tojson }},
+                        backgroundColor: ['#f43f5e', '#f59e0b', '#0ea5e9', '#6366f1', '#94a3b8'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        // Cashflow Detail Chart
+        const cashflowCtx = document.getElementById('cashflowDetailChart');
+        if (cashflowCtx) {
+            new Chart(cashflowCtx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: {{ detail.cashflow.labels | tojson }},
+                    datasets: [
+                        {
+                            label: 'Projected Cash Balance (₹)',
+                            data: {{ detail.cashflow.balances | tojson }},
+                            borderColor: '#2563eb',
+                            backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                            fill: true,
+                            tension: 0.3,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Zero Safety Line',
+                            data: {{ detail.cashflow.zeros | tojson }},
+                            borderColor: '#f43f5e',
+                            borderWidth: 1,
+                            borderDash: [4, 4],
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: '#f1f5f9' } }
+                    }
+                }
+            });
+        }
 
         // Seasonality Chart
-        const seasonalityCtx = document.getElementById('seasonalityChart').getContext('2d');
-        new Chart(seasonalityCtx, {
-            type: 'line',
-            data: {
-                labels: {{ detail.seasonality.labels | tojson }},
-                datasets: [
-                    {
-                        label: 'Typical Revenue',
-                        data: {{ detail.seasonality.typical | tojson }},
-                        borderColor: '#94a3b8',
-                        backgroundColor: 'rgba(148, 163, 184, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        borderDash: [5, 5]
-                    },
-                    {
-                        label: 'Your Revenue',
-                        data: {{ detail.seasonality.actual | tojson }},
-                        borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        borderWidth: 2
+        const seasonCtx = document.getElementById('seasonalityChart');
+        if (seasonCtx) {
+            new Chart(seasonCtx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: {{ detail.seasonality.labels | tojson }},
+                    datasets: [
+                        {
+                            label: 'Cluster Baseline',
+                            data: {{ detail.seasonality.typical | tojson }},
+                            borderColor: '#cbd5e1',
+                            borderDash: [3, 3],
+                            borderWidth: 1.5,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Customer Actual',
+                            data: {{ detail.seasonality.actual | tojson }},
+                            borderColor: '#2563eb',
+                            borderWidth: 2,
+                            pointRadius: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: '#f1f5f9' } }
                     }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } },
-                scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } } }
-            }
-        });
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

@@ -1,111 +1,93 @@
 {% extends "customer_base.html" %}
 
-{% block title %}FINRES - My Financial Health Dashboard{% endblock %}
+{% block title %}FINRES - Customer Resilience Dashboard{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-    <h1 class="h3 mb-1">Welcome back, {{ customer.name }}</h1>
-    <p class="text-muted">Here's your financial health snapshot as of today</p>
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h1 class="h4 mb-1 fw-bold text-dark">Welcome back, {{ customer.name }}</h1>
+        <p class="text-muted small mb-0">Clear visibility into your cash health, buffer runway, and upcoming payments</p>
+    </div>
+    <div>
+        <a href="{{ url_for('customer_detail') }}" class="btn btn-sm btn-primary">
+            <i class="bi bi-file-earmark-text me-1"></i> View Full Financial Breakdown
+        </a>
+    </div>
 </div>
 
-<!-- Top KPI Cards -->
-<div class="row g-4 mb-5">
-    <div class="col-md-6 col-lg-2">
+<!-- Top Scorecards -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-3 col-md-6">
         <div class="kpi-card">
-            <div class="kpi-icon bg-success/10 text-success">
-                <i class="bi bi-shield-check"></i>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="kpi-label">Financial Resilience</span>
+                <span class="status-badge status-good">{{ metrics.resilience_trend or 'Stable' }}</span>
             </div>
             <div class="kpi-value text-success">{{ metrics.resilience_score }}/100</div>
-            <div class="kpi-label">Financial Resilience</div>
-            <div class="kpi-trend text-success">
-                <i class="bi bi-arrow-up-right"></i> {{ metrics.resilience_trend }}
-            </div>
+            <div class="small text-muted mt-2">Overall ability to absorb cashflow shocks</div>
         </div>
     </div>
-    <div class="col-md-6 col-lg-2">
+
+    <div class="col-lg-3 col-md-6">
         <div class="kpi-card">
-            <div class="kpi-icon bg-warning/10 text-warning">
-                <i class="bi bi-exclamation-triangle"></i>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="kpi-label">Distress Risk</span>
+                <span class="status-badge {% if metrics.distress_risk < 40 %}status-good{% elif metrics.distress_risk < 70 %}status-caution{% else %}status-critical{% endif %}">
+                    {% if metrics.distress_risk < 40 %}Low{% elif metrics.distress_risk < 70 %}Moderate{% else %}High Caution{% endif %}
+                </span>
             </div>
-            <div class="kpi-value text-warning">{{ metrics.distress_risk }}/100</div>
-            <div class="kpi-label">Distress Risk</div>
-            <div class="kpi-trend {% if metrics.distress_risk < 40 %}text-success{% elif metrics.distress_risk < 70 %}text-warning{% else %}text-danger{% endif %}">
-                <i class="bi bi-{% if metrics.distress_risk < 40 %}arrow-down-right{% elif metrics.distress_risk < 70 %}dash{% else %}arrow-up-right{% endif %}"></i>
-                {% if metrics.distress_risk < 40 %}Low Risk{% elif metrics.distress_risk < 70 %}Watch List{% else %}High Concern{% endif %}
+            <div class="kpi-value {% if metrics.distress_risk < 40 %}text-success{% elif metrics.distress_risk < 70 %}text-warning{% else %}text-danger{% endif %}">
+                {{ metrics.distress_risk }}/100
             </div>
+            <div class="small text-muted mt-2">Early warning indicator</div>
         </div>
     </div>
-    <div class="col-md-6 col-lg-2">
+
+    <div class="col-lg-3 col-md-6">
         <div class="kpi-card">
-            <div class="kpi-icon bg-primary/10 text-primary">
-                <i class="bi bi-cash-stack"></i>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="kpi-label">Liquid Cash Available</span>
+                <span class="badge bg-light text-secondary border">{{ metrics.cash_runway_days }} Days Runway</span>
             </div>
-            <div class="kpi-value text-primary">₹{{ "{:,.0f}".format(metrics.cash_available) }}</div>
-            <div class="kpi-label">Cash Available</div>
-            <div class="kpi-trend text-muted">
-                {{ metrics.cash_runway_days }} days of expenses
-            </div>
+            <div class="kpi-value text-primary tabular-nums">₹{{ "{:,.0f}".format(metrics.cash_available) }}</div>
+            <div class="small text-muted mt-2">Current bank balances + savings</div>
         </div>
     </div>
-    <div class="col-md-6 col-lg-2">
+
+    <div class="col-lg-3 col-md-6">
         <div class="kpi-card">
-            <div class="kpi-icon bg-info/10 text-info">
-                <i class="bi bi-calendar-event"></i>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="kpi-label">Next Payment Due</span>
+                <span class="status-badge status-caution">In {{ metrics.upcoming_obligation_days }} Days</span>
             </div>
-            <div class="kpi-value text-info">{{ metrics.upcoming_obligation_days }}</div>
-            <div class="kpi-label">Next Payment In</div>
-            <div class="kpi-trend text-muted">
-                ₹{{ "{:,.0f}".format(metrics.upcoming_obligation_amount) }}
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-2">
-        <div class="kpi-card">
-            <div class="kpi-icon bg-success/10 text-success">
-                <i class="bi bi-piggy-bank"></i>
-            </div>
-            <div class="kpi-value text-success">{{ metrics.savings_buffer_days }}</div>
-            <div class="kpi-label">Savings Buffer</div>
-            <div class="kpi-trend text-muted">
-                days of expenses
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-2">
-        <div class="kpi-card">
-            <div class="kpi-icon bg-purple/10 text-purple">
-                <i class="bi bi-graph-up-arrow"></i>
-            </div>
-            <div class="kpi-value text-purple">{{ metrics.monthly_surplus_deficit > 0 and '+' or '' }}{{ "{:,.0f}".format(metrics.monthly_surplus_deficit) }}</div>
-            <div class="kpi-label">Monthly Net</div>
-            <div class="kpi-trend {% if metrics.monthly_surplus_deficit > 0 %}text-success{% else %}text-danger{% endif %}">
-                {% if metrics.monthly_surplus_deficit > 0 %}Surplus{% else %}Shortfall{% endif %}
-            </div>
+            <div class="kpi-value text-danger tabular-nums">₹{{ "{:,.0f}".format(metrics.upcoming_obligation_amount) }}</div>
+            <div class="small text-muted mt-2">Scheduled term loan EMI & payables</div>
         </div>
     </div>
 </div>
 
-<!-- Quick Insights -->
-<div class="row g-4 mb-5">
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
     <div class="col-lg-8">
-        <div class="card">
+        <div class="card h-100">
             <div class="card-header">
-                <span class="section-title"><i class="bi bi-activity"></i> Cash Flow Overview</span>
+                <span><i class="bi bi-activity me-1"></i> 30-Day Cash Flow Projection</span>
             </div>
             <div class="card-body">
-                <div class="chart-container">
+                <div style="height: 220px;">
                     <canvas id="cashflowChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
+
     <div class="col-lg-4">
-        <div class="card">
+        <div class="card h-100">
             <div class="card-header">
-                <span class="section-title"><i class="bi bi-pie-chart"></i> Where Your Money Goes</span>
+                <span><i class="bi bi-pie-chart me-1"></i> Cost Breakdown</span>
             </div>
             <div class="card-body">
-                <div class="chart-container">
+                <div style="height: 220px;">
                     <canvas id="expenseChart"></canvas>
                 </div>
             </div>
@@ -113,138 +95,33 @@
     </div>
 </div>
 
-<!-- Priority Recommendations -->
-<div class="row g-4 mb-5">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="section-title"><i class="bi bi-lightbulb"></i> Priority Actions</span>
-                <a href="{{ url_for('customer_detail') }}" class="btn btn-sm btn-outline-primary">View All</a>
-            </div>
-            <div class="card-body">
-                {% if priority_recommendations %}
-                    {% for rec in priority_recommendations %}
-                    <div class="recommendation-card {{ rec.urgency }}">
-                        <div class="rec-section">
-                            <div class="rec-label">What's Happening</div>
-                            <div class="rec-text">{{ rec.what }}</div>
-                        </div>
-                        <div class="rec-section">
-                            <div class="rec-label">Why</div>
-                            <div class="rec-text">{{ rec.why }}</div>
-                        </div>
-                        <div class="rec-section">
-                            <div class="rec-label">What You Can Do</div>
-                            <div class="rec-text">{{ rec.action }}</div>
-                        </div>
-                        <div class="rec-section">
-                            <div class="rec-label d-flex justify-content-between align-items-center">
-                                Confidence
-                                <span class="badge bg-light text-dark">{{ rec.confidence }}%</span>
-                            </div>
-                            <div class="confidence-meter">
-                                <div class="confidence-fill bg-primary" style="width: {{ rec.confidence }}%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-state">
-                        <i class="bi bi-check-circle text-success"></i>
-                        <h5>No urgent actions needed</h5>
-                        <p>Your financial health looks stable right now. Keep up the good habits!</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+<!-- Actionable Guidance in Plain English -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-lightbulb me-1"></i> Personalized Financial Guidance</span>
+        <span class="badge bg-light text-secondary border">Actionable Steps</span>
     </div>
-</div>
-
-<!-- Quick Stats Grid -->
-<div class="row g-4">
-    <div class="col-md-6 col-lg-3">
-        <div class="card">
-            <div class="card-header">
-                <span class="section-title"><i class="bi bi-currency-rupee"></i> Income</span>
-            </div>
-            <div class="card-body">
-                <div class="data-row">
-                    <span class="data-label">Monthly Average</span>
-                    <span class="data-value text-success">+₹{{ "{:,.0f}".format(metrics.monthly_income) }}</span>
+    <div class="card-body">
+        {% if priority_recommendations %}
+            {% for rec in priority_recommendations %}
+            <div class="recommendation-card {{ rec.urgency }}">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <h6 class="fw-bold text-dark mb-0">{{ rec.what }}</h6>
+                    <span class="badge bg-light text-secondary border">Confidence: {{ rec.confidence }}%</span>
                 </div>
-                <div class="data-row">
-                    <span class="data-label">Business Revenue</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(metrics.business_revenue) }}</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Other Income</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(metrics.other_income) }}</span>
+                <p class="small text-secondary mt-1 mb-2"><strong>Why this is happening:</strong> {{ rec.why }}</p>
+                <div class="p-2 bg-white rounded border small text-dark">
+                    <strong>Recommended Next Step:</strong> {{ rec.action }}
                 </div>
             </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card">
-            <div class="card-header">
-                <span class="section-title"><i class="bi bi-cash-stack"></i> Expenses</span>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-check-circle text-success fs-3"></i>
+                <h6 class="mt-2 fw-semibold">No urgent actions required</h6>
+                <p class="small">Your cash buffer is healthy and upcoming payments are well covered.</p>
             </div>
-            <div class="card-body">
-                <div class="data-row">
-                    <span class="data-label">Monthly Average</span>
-                    <span class="data-value text-danger">-₹{{ "{:,.0f}".format(metrics.monthly_expenses) }}</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Essential Expenses</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(metrics.essential_expenses) }}</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Discretionary</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(metrics.discretionary_expenses) }}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card">
-            <div class="card-header">
-                <span class="section-title"><i class="bi bi-credit-card"></i> Loans</span>
-            </div>
-            <div class="card-body">
-                <div class="data-row">
-                    <span class="data-label">Total Outstanding</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(metrics.total_loans) }}</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Monthly EMIs</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(metrics.monthly_emis) }}</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Active Loans</span>
-                    <span class="data-value">{{ metrics.active_loans_count }}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card">
-            <div class="card-header">
-                <span class="section-title"><i class="bi bi-receipt"></i> Receivables</span>
-            </div>
-            <div class="card-body">
-                <div class="data-row">
-                    <span class="data-label">Total Owed to You</span>
-                    <span class="data-value text-success">₹{{ "{:,.0f}".format(metrics.total_receivables) }}</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Due This Month</span>
-                    <span class="data-value">₹{{ "{:,.0f}".format(metrics.receivables_due_month) }}</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Overdue</span>
-                    <span class="data-value {% if metrics.receivables_overdue > 0 %}text-danger{% else %}text-success{% endif %}">{{ metrics.receivables_overdue > 0 and '₹' + "{:,.0f}".format(metrics.receivables_overdue) or 'None' }}</span>
-                </div>
-            </div>
-        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -252,75 +129,53 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Cash Flow Chart
-        const cashflowCtx = document.getElementById('cashflowChart').getContext('2d');
-        new Chart(cashflowCtx, {
+        // Cashflow Chart
+        const cashCtx = document.getElementById('cashflowChart').getContext('2d');
+        new Chart(cashCtx, {
             type: 'line',
             data: {
                 labels: {{ cashflow_labels | tojson }},
                 datasets: [
                     {
-                        label: 'Income',
-                        data: {{ cashflow_income | tojson }},
-                        borderColor: '#16a34a',
-                        backgroundColor: 'rgba(22, 163, 74, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Expenses',
-                        data: {{ cashflow_expenses | tojson }},
-                        borderColor: '#dc2626',
-                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Net Balance',
+                        label: 'Projected Balance',
                         data: {{ cashflow_balance | tojson }},
                         borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.4,
-                        borderDash: [5, 5]
+                        backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
-                    y: { beginAtZero: true, ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } } }
+                    x: { grid: { display: false } },
+                    y: { grid: { color: '#f1f5f9' } }
                 }
             }
         });
 
-        // Expense Breakdown Chart
-        const expenseCtx = document.getElementById('expenseChart').getContext('2d');
-        new Chart(expenseCtx, {
+        // Expense Donut Chart
+        const expCtx = document.getElementById('expenseChart').getContext('2d');
+        new Chart(expCtx, {
             type: 'doughnut',
             data: {
                 labels: {{ expense_labels | tojson }},
                 datasets: [{
                     data: {{ expense_values | tojson }},
-                    backgroundColor: [
-                        '#2563eb', '#16a34a', '#f59e0b', '#dc2626',
-                        '#0891b2', '#7c3aed', '#ec4899'
-                    ],
-                    borderWidth: 0,
-                    borderRadius: 8
+                    backgroundColor: ['#f43f5e', '#f59e0b', '#0ea5e9', '#6366f1', '#94a3b8'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { size: 11 } } }
-                }
+                plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } },
+                cutout: '60%'
             }
         });
     });
