@@ -219,7 +219,13 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.get("/health", tags=["System Health"])
 async def health_check():
     """Health check endpoint for Render and infrastructure load balancers."""
-    return {"status": "healthy", "timestamp": time.time(), "platform": "FINRES"}
+    return StandardAPIResponse[Dict[str, Any]](
+        success=True,
+        message="System is healthy",
+        data={"status": "HEALTHY", "platform": "FINRES", "timestamp": time.time()},
+        errors=[],
+        meta=APIResponseMeta(execution_time_ms=0.0)
+    )
 
 
 

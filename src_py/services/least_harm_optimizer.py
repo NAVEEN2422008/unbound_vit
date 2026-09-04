@@ -4,7 +4,7 @@ Evaluates all 11 candidate interventions using multi-dimensional harm and benefi
 enforces anti-predatory "No-New-Loan" guardrails (DSCR >= 1.25, FOIR <= 60%),
 ranks options transparently, and outputs auditable evidence cards.
 """
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from src_py.models.schemas import FinancialRealityObject
 from src_py.models.least_harm_schemas import (
     CandidateIntervention, HarmDimensionBreakdown, BenefitDimensionBreakdown,
