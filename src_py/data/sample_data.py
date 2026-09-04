@@ -11,6 +11,8 @@ SAMPLE_CUSTOMERS_DATA: Dict[str, Dict[str, Any]] = {
         "id": "CUST_MSME_TIRUPPUR_001",
         "name": "Sri Balaji Fabrics & Knits Pvt Ltd",
         "archetype": "MSME",
+        "industry": "Textile & Apparel",
+        "cluster_region": "Tiruppur, Tamil Nadu",
         "liquid_cash": 140000.0,
         "savings": 50000.0,
         "raw_transactions": [
@@ -88,6 +90,8 @@ SAMPLE_CUSTOMERS_DATA: Dict[str, Dict[str, Any]] = {
         "id": "CUST_SALARIED_BLR_002",
         "name": "Ananya Sharma",
         "archetype": "SALARIED",
+        "industry": "Information Technology",
+        "cluster_region": "Bengaluru, Karnataka",
         "liquid_cash": 18500.0,
         "savings": 12000.0,
         "raw_transactions": [

@@ -20,7 +20,7 @@ Features complete modular service endpoints across all 24 sub-engines:
 Includes Authentication, Role-Based Access Control, Error Handling, and Standardized Response Envelopes.
 """
 from fastapi import FastAPI, HTTPException, Query, status, Depends, Request, Form
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,7 +30,7 @@ import time
 import logging
 import math
 import jinja2
-from datetime import datetime
+from datetime import datetime, date
 from types import SimpleNamespace
 
 from src_py.core.response import StandardAPIResponse, APIResponseMeta, TokenData
@@ -169,8 +169,9 @@ app = FastAPI(
     title="FINRES Financial Distress Prevention & Decision Support Platform",
     description="Institutional Scheduled Commercial Bank (SCB) early warning, distress prevention, and intervention engine.",
     version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None
 )
 
 # Templates setup for UI rendering
@@ -191,6 +192,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# UI Authentication Helper
+UI_EXEMPT_PATHS = {"/login", "/logout", "/health", "/api"}
+
+def _get_ui_user(request: Request) -> Optional[Dict[str, str]]:
+    """Get current user from session cookies. Returns None if not authenticated."""
+    username = request.cookies.get("finres_user")
+    role = request.cookies.get("finres_role", "BANKER")
+    name = request.cookies.get("finres_name", username or "User")
+    if username:
+        return {"username": username, "role": role, "display_name": name, "is_authenticated": True}
+    return None
+
+def _require_ui_auth(request: Request):
+    """Dependency that enforces authentication for UI routes."""
+    path = request.url.path
+    if any(path.startswith(p) for p in UI_EXEMPT_PATHS):
+        return
+    user = _get_ui_user(request)
+    if not user:
+        raise HTTPException(status_code=303, headers={"Location": "/login"})
 
 
 @app.middleware("http")
@@ -2318,13 +2341,17 @@ async def root_redirect():
 @app.get("/dashboard", response_class=HTMLResponse, tags=["UI"])
 async def dashboard(request: Request):
     """Render the main dashboard with top-level metrics."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     metrics = _calculate_dashboard_metrics()
     priority_customers = _get_priority_customers(limit=8)
     
     collision_data = [0, 2, 1, 3, 2, 1, 0]
     trend_data = [72, 75, 73, 70, 68, 71, 69, 70]
     
-    current_user = {"is_authenticated": True, "username": "Bank Officer"}
+    current_user = {"is_authenticated": True, "username": user["display_name"]}
     
     return templates.TemplateResponse(request, "dashboard.html", {
         "request": request,
@@ -2339,6 +2366,10 @@ async def dashboard(request: Request):
 @app.get("/customers", response_class=HTMLResponse, tags=["UI"])
 async def customers(request: Request, status: Optional[str] = None, page: int = 1):
     """Render the customer table page with all customers."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     all_rows = []
     for customer_id in SAMPLE_CUSTOMERS_DATA.keys():
         row = _build_customer_row(customer_id)
@@ -2384,7 +2415,7 @@ async def customers(request: Request, status: Optional[str] = None, page: int = 
         iter_pages=lambda: range(max(1, page-2), min(pages+1, page+3))
     )
     
-    current_user = {"is_authenticated": True, "username": "Bank Officer"}
+    current_user = {"is_authenticated": True, "username": user["display_name"]}
     
     return templates.TemplateResponse(request, "customers.html", {
         "request": request,
@@ -2425,6 +2456,10 @@ def _compute_distress_score(customer_id: str) -> float:
 @app.get("/customers/{customer_id}", response_class=HTMLResponse, tags=["UI"])
 async def customer_detail(request: Request, customer_id: str):
     """Render the customer detail page with all 13 modules."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     if customer_id not in SAMPLE_CUSTOMERS_DATA:
         raise HTTPException(status_code=404, detail=f"Customer '{customer_id}' not found")
     
@@ -2530,7 +2565,7 @@ def _build_customer_metrics(customer_id: str) -> dict:
         # Extract metrics safely
         income = _safe_float(getattr(getattr(fre, 'monthly_income', None), 'value', 0), 0)
         expenses = _safe_float(getattr(getattr(fre, 'monthly_expenses', None), 'value', 0), 0)
-        liquid = _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0)
+        liquid = _safe_float(data.get("liquid_cash", 0), 0)
         runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
         distress = _compute_distress_score(customer_id)
         health = _safe_float(getattr(fre, 'financial_health_score', 65), 65)
@@ -2676,6 +2711,41 @@ def _build_priority_recommendations(customer_id: str) -> list:
     except Exception as e:
         logger.warning(f"Recommendations build failed: {e}")
         return []
+
+
+def _get_root_cause(archetype: str, rec_overdue: float, monthly_emis: float, runway: float) -> str:
+    """Generate archetype-appropriate root cause description."""
+    archetype = (archetype or "MSME").upper()
+    if "SALARIED" in archetype:
+        if monthly_emis > 0:
+            return "High debt-to-income ratio with multiple loan obligations"
+        return "Income instability or unexpected expense shock"
+    elif "MANUFACTURER" in archetype or "MSME" in archetype:
+        if rec_overdue > 100000 and runway < 30:
+            return "Delayed Buyer Receivables + Capex Debt Squeeze"
+        elif rec_overdue > 100000:
+            return "Delayed Buyer Receivables creating liquidity gap"
+        elif runway < 15:
+            return "Cash buffer depletion from operational cost overload"
+        return "Multi-factor stress: receivables + debt burden"
+    else:
+        return "Cash flow mismatch between income and obligations"
+
+
+def _get_root_cause_evidence(archetype: str, rec_overdue: float, monthly_emis: float, income: float, expenses: float) -> str:
+    """Generate archetype-appropriate root cause evidence."""
+    archetype = (archetype or "MSME").upper()
+    if "SALARIED" in archetype:
+        return f"Monthly income of ₹{income:,.0f} with EMI obligations of ₹{monthly_emis:,.0f} ({monthly_emis/max(income,1)*100:.0f}% of income). Limited income diversification."
+    else:
+        parts = []
+        if rec_overdue > 0:
+            parts.append(f"Overdue receivables of ₹{rec_overdue:,.0f}")
+        if monthly_emis > 0:
+            parts.append(f"Monthly EMI of ₹{monthly_emis:,.0f}")
+        if expenses > income:
+            parts.append(f"Expenses (₹{expenses:,.0f}) exceed income (₹{income:,.0f})")
+        return ". ".join(parts) if parts else "Financial stress from multiple contributing factors."
 
 
 def _build_cashflow_data(customer_id: str) -> dict:
@@ -2868,10 +2938,10 @@ def _build_customer_detail_data(customer_id: str) -> dict:
             {"timestamp": "2026-09-04 05:31 UTC", "actor": "Risk Underwriter", "action": "Diagnostic Dossier Generated", "notes": "Decision Twin simulation executed across 4 candidate scenarios."}
         ]
 
-        distress_sc = int(current_distress)
-        resilience_sc = int(_safe_float(getattr(getattr(fre, 'resilience_score', None), 'value', 48), 48))
-        confidence_sc = int(_safe_float(getattr(fre, 'data_completeness_percentage', 92), 92))
-        runway_sc = int(_safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 18), 18))
+        distress_sc = round(current_distress)
+        resilience_sc = round(_safe_float(getattr(getattr(fre, 'resilience_score', None), 'value', 48), 48))
+        confidence_sc = round(_safe_float(getattr(fre, 'data_completeness_percentage', 92), 92))
+        runway_sc = round(_safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 18), 18))
         liquid_sc = _safe_float(data.get("liquid_cash", 145000), 145000)
         
         # Update audit history with computed runway
@@ -2907,8 +2977,8 @@ def _build_customer_detail_data(customer_id: str) -> dict:
             "liquid_cash": liquid_sc,
             "next_collision_days": next_collision_days,
             "next_collision_amount": next_collision_amount,
-            "root_cause": "Delayed Buyer Receivables + Capex Debt Squeeze during Lean Season",
-            "root_cause_evidence": f"Overdue receivables of ₹{rec_overdue:,.0f} exceeding 30 days. Monthly EMI of ₹{monthly_emis:,.0f} creates cash flow collision.",
+            "root_cause": _get_root_cause(data.get("archetype", "MSME"), rec_overdue, monthly_emis, runway_sc),
+            "root_cause_evidence": _get_root_cause_evidence(data.get("archetype", "MSME"), rec_overdue, monthly_emis, income_val, expenses_val),
             "context_summary": context_summary,
             "simulated_scenarios": simulated_scenarios,
             "audit_history": audit_history,
@@ -3060,6 +3130,10 @@ async def customer_dashboard(
     id: Optional[str] = Query(None)
 ):
     """Render the customer dashboard."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     cid = customer_id or id or "CUST_MSME_TIRUPPUR_001"
     
     metrics = _build_customer_metrics(cid)
@@ -3086,7 +3160,7 @@ async def customer_dashboard(
     return templates.TemplateResponse(request, "customer_dashboard.html", {
         "request": request,
         "customer": {"name": customer_name, "id": cid},
-        "metrics": type('obj', (object,), metrics),
+        "metrics": type('obj', (object,), metrics)(),
         "priority_recommendations": priority_recs,
         "cashflow_labels": cashflow_data["labels"],
         "cashflow_income": cashflow_data["income"],
@@ -3104,6 +3178,10 @@ async def customer_detail(
     id: Optional[str] = Query(None)
 ):
     """Render the customer detail page with all sections."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     cid = customer_id or id or "CUST_MSME_TIRUPPUR_001"
     
     detail_data = _build_customer_detail_data(cid)
@@ -3239,6 +3317,10 @@ async def monitoring_root_redirect():
 @app.get("/monitoring/dashboard", response_class=HTMLResponse, tags=["Monitoring"])
 async def monitoring_dashboard(request: Request):
     """Render the monitoring dashboard with all metrics."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     metrics = _get_monitoring_metrics()
     api_health = _get_system_health()
     
@@ -3269,6 +3351,10 @@ async def monitoring_dashboard(request: Request):
 @app.get("/monitoring/models", response_class=HTMLResponse, tags=["Monitoring"])
 async def monitoring_models(request: Request):
     """Render the models management page."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     metrics = _get_monitoring_metrics()
     return templates.TemplateResponse(request, "monitoring_models.html", {
         "request": request,
@@ -3280,6 +3366,10 @@ async def monitoring_models(request: Request):
 @app.get("/monitoring/rules", response_class=HTMLResponse, tags=["Monitoring"])
 async def monitoring_rules(request: Request):
     """Render the rules management page."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     metrics = _get_monitoring_metrics()
     return templates.TemplateResponse(request, "monitoring_rules.html", {
         "request": request,
@@ -3291,6 +3381,10 @@ async def monitoring_rules(request: Request):
 @app.get("/monitoring/audit", response_class=HTMLResponse, tags=["Monitoring"])
 async def monitoring_audit(request: Request, limit: int = 100):
     """Render the audit log page."""
+    user = _get_ui_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
     # Get recent audit entries (in production, would query database)
     recent_audit = AUDIT_LOG[-limit:] if AUDIT_LOG else []
     
