@@ -23,38 +23,45 @@ class EarlyDistressDetectionService:
     _scaler: Optional[StandardScaler] = None
     _ml_model: Optional[LogisticRegression] = None
     _is_calibrated: bool = False
+    _ml_models: Dict = {}
+    _ml_scalers: Dict = {}
+    _best_model_name: Optional[str] = None
 
     @classmethod
     def _initialize_and_calibrate_ml_model(cls):
         """
-        Calibrates a Logistic Regression baseline model on representative training samples
-        spanning healthy profiles, early warning stress, and severe default precursors.
-        Clearly labeled as PROTOTYPE calibrated on synthetic banking labels.
+        Load trained models from the ML pipeline's model artifacts.
+        Falls back to synthetic calibration if no real models exist.
         """
-        if cls._is_calibrated and cls._ml_model is not None:
+        if cls._is_calibrated:
             return
 
-        # 9 Input Features:
-        # [declining_cash_pct, neg_balance_freq, cash_buffer_days, revenue_decline_pct,
-        #  income_volatility, fixed_cost_ratio, debt_service_ratio, late_payments, collision_shortfall_scaled]
+        try:
+            from src_py.ai.registry import get_registry
+            registry = get_registry()
+            if registry._models:
+                cls._ml_models = registry._models
+                cls._ml_scalers = registry._scalers
+                cls._best_model_name = registry.get_best_model_name()
+                cls._is_calibrated = True
+                print(f"[DistressEngine] Loaded {len(cls._ml_models)} real ML models. Best: {cls._best_model_name}")
+                return
+        except Exception as e:
+            print(f"[DistressEngine] Could not load real models: {e}")
+
+        # Fallback: train on 13 synthetic samples (PROTOTYPE)
+        print("[DistressEngine] Using synthetic fallback calibration")
         X_train = np.array([
-            # 1. Healthy Customers (Distress 0)
             [0.0, 0, 45, 0.0, 0.05, 0.35, 0.18, 0, 0.0],
             [-5.0, 0, 38, 2.0, 0.08, 0.40, 0.22, 0, 0.0],
             [2.0, 0, 50, 5.0, 0.04, 0.30, 0.15, 0, 0.0],
             [-2.0, 0, 42, -1.0, 0.06, 0.38, 0.20, 0, 0.0],
-            
-            # 2. Moderate Stress / Early Watchlist (Distress 0 or early 1)
             [12.0, 1, 24, 8.0, 0.18, 0.50, 0.35, 1, 10000.0],
             [18.0, 1, 20, 12.0, 0.22, 0.55, 0.38, 1, 20000.0],
             [15.0, 0, 22, 10.0, 0.20, 0.52, 0.36, 0, 15000.0],
-            
-            # 3. High Stress (Distress 1)
             [30.0, 3, 14, 25.0, 0.32, 0.68, 0.48, 2, 60000.0],
             [35.0, 4, 11, 28.0, 0.38, 0.72, 0.52, 3, 85000.0],
             [40.0, 5, 9, 32.0, 0.40, 0.75, 0.55, 3, 110000.0],
-            
-            # 4. Critical Stress / Imminent Collision (Distress 1)
             [55.0, 8, 4, 45.0, 0.50, 0.85, 0.65, 5, 200000.0],
             [60.0, 10, 2, 50.0, 0.58, 0.90, 0.70, 6, 250000.0],
             [70.0, 12, 1, 55.0, 0.62, 0.95, 0.75, 8, 300000.0],
@@ -66,7 +73,24 @@ class EarlyDistressDetectionService:
 
         cls._ml_model = LogisticRegression(C=1.0, solver="lbfgs", random_state=42)
         cls._ml_model.fit(X_scaled, y_train)
+        cls._best_model_name = "synthetic_fallback"
         cls._is_calibrated = True
+
+    @classmethod
+    def _predict_ml(cls, features: np.ndarray) -> float:
+        """Run ML prediction using the best available model."""
+        if cls._best_model_name in cls._ml_models:
+            from src_py.ai.registry import predict_distress
+            result = predict_distress(features, cls._best_model_name)
+            return result.get("probability", 0.5)
+        elif cls._ml_model is not None:
+            scaler = cls._scaler
+            X = features.reshape(1, -1) if features.ndim == 1 else features
+            if scaler is not None:
+                X = scaler.transform(X)
+            proba = cls._ml_model.predict_proba(X)[0]
+            return float(proba[1]) if len(proba) > 1 else 0.5
+        return 0.5
 
     @classmethod
     def _evaluate_rules_engine(cls, req: DistressPredictionRequest) -> Tuple[float, List[RiskFactorContribution]]:
@@ -224,9 +248,8 @@ class EarlyDistressDetectionService:
             req.late_payments_last_90d,
             req.upcoming_collision_shortfall
         ]])
-        feat_scaled = cls._scaler.transform(feat_vector)
-        # Probability of distress class (1)
-        ml_prob = float(cls._ml_model.predict_proba(feat_scaled)[0][1])
+        # Use real trained ML model if available, fallback to synthetic
+        ml_prob = cls._predict_ml(feat_vector)
         ml_score = round(ml_prob * 100.0, 1)
 
         # 3. Horizon scaling adjustment:

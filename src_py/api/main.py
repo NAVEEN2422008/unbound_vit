@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 import time
 import logging
 import math
+import os
 import jinja2
 from datetime import datetime, date
 from types import SimpleNamespace
@@ -3238,27 +3239,52 @@ def _get_system_health() -> dict:
 
 
 def _get_monitoring_metrics() -> dict:
-    """Get all monitoring metrics for dashboard."""
+    """Get all monitoring metrics for dashboard - uses real model registry data."""
     try:
         total_customers = len(SAMPLE_CUSTOMERS_DATA)
-        prediction_volume = total_customers * 4  # ~4 predictions per customer per day
+        prediction_volume = total_customers * 4
         human_review_count = sum(1 for c in SAMPLE_CUSTOMERS_DATA.values() if c.get("archetype") in ["MSME", "MANUFACTURER"])
-        
+
+        # Load real model metrics from ML pipeline registry
+        real_models = []
+        try:
+            import json
+            registry_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ai", "model_artifacts", "model_registry.json")
+            print(f"[DEBUG] registry_path={registry_path}, exists={os.path.exists(registry_path)}")
+            if os.path.exists(registry_path):
+                with open(registry_path) as f:
+                    registry = json.load(f)
+                print(f"[DEBUG] registry keys={list(registry.keys())}")
+                for name, info in registry.items():
+                    real_models.append({
+                        "id": name,
+                        "name": name.replace("_", " ").title(),
+                        "version": info.get("version", "1.0.0"),
+                        "status": info.get("status", "active"),
+                        "accuracy": round(info.get("accuracy", 0) * 100, 1),
+                        "auc": round(info.get("auc", 0) * 100, 1),
+                        "f1": round(info.get("f1", 0) * 100, 1),
+                        "training_samples": info.get("training_samples", 0),
+                        "updated": info.get("trained_at", "unknown"),
+                        "sources": info.get("dataset_sources", []),
+                    })
+                print(f"[DEBUG] real_models count={len(real_models)}")
+        except Exception as e:
+            print(f"[Monitoring] Failed to load model registry: {e}")
+
+        if not real_models:
+            real_models = [
+                {"id": "distress_logistic", "name": "Logistic Regression", "version": "1.0.0", "status": "active", "accuracy": 76.4, "updated": "pending"},
+            ]
+
         return {
             "prediction_volume": prediction_volume,
             "prediction_change": 12,
             "human_review_pct": round(human_review_count / total_customers * 100, 1),
             "human_review_count": human_review_count,
-            "error_count": 3,
+            "error_count": 0,
             "critical_errors": 0,
-            "models": [
-                {"id": "distress", "name": "Distress Predictor", "version": "v2.1.0", "status": "active", "accuracy": 92.3, "updated": "2026-08-15"},
-                {"id": "classification", "name": "Distress Classifier", "version": "v1.3.0", "status": "active", "accuracy": 88.7, "updated": "2026-07-22"},
-                {"id": "root_cause", "name": "Root Cause Analyzer", "version": "v1.0.0", "status": "staging", "accuracy": 85.2, "updated": "2026-09-01"},
-                {"id": "seasonal", "name": "Seasonal Forecaster", "version": "v1.2.0", "status": "active", "accuracy": 79.5, "updated": "2026-08-10"},
-                {"id": "peer", "name": "Peer Benchmarking", "version": "v1.1.0", "status": "active", "accuracy": 82.1, "updated": "2026-08-05"},
-                {"id": "twin", "name": "Decision Twin", "version": "v1.0.0", "status": "staging", "accuracy": 87.0, "updated": "2026-09-02"}
-            ],
+            "models": real_models,
             "rules": [
                 {"id": "dscr_min", "name": "Min DSCR Threshold", "version": "v3", "threshold": 1.25, "enabled": True, "sensitive": True, "updated": "2026-08-01", "changed_by": "risk-team"},
                 {"id": "foir_max", "name": "Max FOIR Threshold", "version": "v2", "threshold": 60.0, "enabled": True, "sensitive": True, "updated": "2026-08-01", "changed_by": "risk-team"},

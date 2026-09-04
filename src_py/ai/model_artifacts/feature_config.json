@@ -1,0 +1,43 @@
+{
+  "base_features": [
+    "declining_cash_pct",
+    "neg_balance_freq",
+    "cash_buffer_days",
+    "revenue_decline_pct",
+    "income_volatility",
+    "fixed_cost_ratio",
+    "debt_service_ratio",
+    "late_payments",
+    "collision_shortfall_scaled"
+  ],
+  "enriched_features": [
+    "debt_service_ratio",
+    "loan_burden",
+    "income_per_year_exp",
+    "collateral_coverage",
+    "credit_utilization",
+    "grade_risk",
+    "historical_default_flag",
+    "cash_buffer_days",
+    "declining_cash_pct",
+    "neg_balance_freq",
+    "revenue_decline_pct",
+    "income_volatility",
+    "fixed_cost_ratio",
+    "late_payments",
+    "collision_shortfall_scaled",
+    "age",
+    "employment_years",
+    "credit_history_years",
+    "log_income",
+    "log_loan",
+    "log_property",
+    "income_x_employment",
+    "loan_x_rate",
+    "ltv_x_grade",
+    "score_x_income",
+    "is_msME",
+    "has_property",
+    "high_grade_risk"
+  ]
+}
