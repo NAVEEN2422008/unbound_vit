@@ -20,68 +20,74 @@
 <div class="row g-3 mb-4">
     <!-- Panel 1: Risk Distribution Summary -->
     <div class="col-lg-6 col-md-12">
-        <div class="kpi-panel">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <span class="kpi-label">Portfolio Risk Breakdown</span>
-                <span class="badge bg-secondary text-light">{{ metrics.total_customers }} Total Accounts</span>
+        <a href="{{ url_for('customers') }}" class="text-decoration-none">
+            <div class="kpi-panel" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="kpi-label">Portfolio Risk Breakdown</span>
+                    <span class="badge bg-secondary text-light">{{ metrics.total_customers }} Total Accounts</span>
+                </div>
+                <div class="row g-2 text-center">
+                    <div class="col">
+                        <div class="p-2 rounded bg-light border">
+                            <div class="kpi-value text-success">{{ metrics.low_risk }}</div>
+                            <div class="kpi-subtext fw-semibold text-success">Low Risk</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="p-2 rounded bg-light border">
+                            <div class="kpi-value text-warning">{{ metrics.moderate_risk }}</div>
+                            <div class="kpi-subtext fw-semibold text-warning">Moderate</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="p-2 rounded bg-light border">
+                            <div class="kpi-value text-danger">{{ metrics.high_risk }}</div>
+                            <div class="kpi-subtext fw-semibold text-danger">High Risk</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="p-2 rounded bg-light border">
+                            <div class="kpi-value text-danger fw-bold">{{ metrics.critical }}</div>
+                            <div class="kpi-subtext fw-semibold text-danger">Critical</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="row g-2 text-center">
-                <div class="col">
-                    <div class="p-2 rounded bg-light border">
-                        <div class="kpi-value text-success">{{ metrics.low_risk }}</div>
-                        <div class="kpi-subtext fw-semibold text-success">Low Risk</div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="p-2 rounded bg-light border">
-                        <div class="kpi-value text-warning">{{ metrics.moderate_risk }}</div>
-                        <div class="kpi-subtext fw-semibold text-warning">Moderate</div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="p-2 rounded bg-light border">
-                        <div class="kpi-value text-danger">{{ metrics.high_risk }}</div>
-                        <div class="kpi-subtext fw-semibold text-danger">High Risk</div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="p-2 rounded bg-light border">
-                        <div class="kpi-value text-danger fw-bold">{{ metrics.critical }}</div>
-                        <div class="kpi-subtext fw-semibold text-danger">Critical</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </a>
     </div>
 
     <!-- Panel 2: Underwriter Action Queue -->
     <div class="col-lg-3 col-md-6">
-        <div class="kpi-panel d-flex flex-column justify-content-between">
-            <div>
-                <div class="kpi-label">Human Review Queue</div>
-                <div class="kpi-value text-primary mt-1">{{ metrics.human_review }}</div>
-                <div class="kpi-subtext">Accounts requiring banker underwriter approval before intervention</div>
+        <a href="{{ url_for('customers') }}?status=high" class="text-decoration-none">
+            <div class="kpi-panel d-flex flex-column justify-content-between" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                <div>
+                    <div class="kpi-label">Human Review Queue</div>
+                    <div class="kpi-value text-primary mt-1">{{ metrics.human_review }}</div>
+                    <div class="kpi-subtext">Accounts requiring banker underwriter approval before intervention</div>
+                </div>
+                <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">Queue Health</span>
+                    <span class="status-badge status-review"><i class="bi bi-shield-exclamation"></i> {% if metrics.human_review > 0 %}Action Needed{% else %}All Clear{% endif %}</span>
+                </div>
             </div>
-            <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-                <span class="text-muted small">Queue Health</span>
-                <span class="status-badge status-review"><i class="bi bi-shield-exclamation"></i> Action Needed</span>
-            </div>
-        </div>
+        </a>
     </div>
 
     <!-- Panel 3: Collision Radar -->
     <div class="col-lg-3 col-md-6">
-        <div class="kpi-panel d-flex flex-column justify-content-between">
-            <div>
-                <div class="kpi-label">7-Day Obligation Collisions</div>
-                <div class="kpi-value text-danger mt-1">{{ metrics.upcoming_collisions }}</div>
-                <div class="kpi-subtext">Liquidity deficits where upcoming payments exceed liquid buffers</div>
+        <a href="{{ url_for('customers') }}?status=critical" class="text-decoration-none">
+            <div class="kpi-panel d-flex flex-column justify-content-between" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                <div>
+                    <div class="kpi-label">7-Day Obligation Collisions</div>
+                    <div class="kpi-value text-danger mt-1">{{ metrics.upcoming_collisions }}</div>
+                    <div class="kpi-subtext">Liquidity deficits where upcoming payments exceed liquid buffers</div>
+                </div>
+                <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">Surveillance Status</span>
+                    <span class="status-badge status-high"><i class="bi bi-radar"></i> Radar Active</span>
+                </div>
             </div>
-            <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-                <span class="text-muted small">Surveillance Status</span>
-                <span class="status-badge status-high"><i class="bi bi-radar"></i> Radar Active</span>
-            </div>
-        </div>
+        </a>
     </div>
 </div>
 

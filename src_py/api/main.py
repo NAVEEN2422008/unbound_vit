@@ -2104,7 +2104,7 @@ def _calculate_dashboard_metrics():
                     savings=data.get("savings", 0.0)
                 )
                 
-                score = _safe_float(getattr(fre, 'distress_score', 0), 0)
+                score = _compute_distress_score(customer_id)
                 runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
                 next_collision = getattr(fre, 'next_critical_collision_date', None)
                 
@@ -2145,7 +2145,7 @@ def _get_priority_customers(limit=10):
                     savings=data.get("savings", 0.0)
                 )
                 
-                score = _safe_float(getattr(fre, 'distress_score', 0), 0)
+                score = _compute_distress_score(customer_id)
                 if score >= 40:
                     confidence = _safe_float(getattr(fre, 'data_completeness_percentage', 92), 92)
                     
@@ -2200,7 +2200,7 @@ def _build_customer_row(customer_id):
             savings=data.get("savings", 0.0)
         )
         
-        score = _safe_float(getattr(fre, 'distress_score', 0), 0)
+        score = _compute_distress_score(customer_id)
         confidence = _safe_float(getattr(fre, 'data_completeness_percentage', 92), 92)
         runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
         next_collision = getattr(fre, 'next_critical_collision_date', None)
@@ -2405,6 +2405,23 @@ def dict_to_obj(d):
         return d
 
 
+def _compute_distress_score(customer_id: str) -> float:
+    """Compute distress score using the actual distress engine."""
+    try:
+        data, txns, loans, obligations, receivables, payables, assets = get_customer_entities(customer_id)
+        fre = FinancialRealityEngineService.compute_financial_reality(
+            customer_id=data["id"], customer_name=data["name"], archetype=data["archetype"],
+            transactions=txns, loans=loans, obligations=obligations, receivables=receivables,
+            payables=payables, assets=assets, liquid_cash=data["liquid_cash"],
+            savings=data.get("savings", 0.0)
+        )
+        result = EarlyDistressDetectionService.evaluate_customer_entity(customer_id, fre)
+        return _safe_float(getattr(result, 'distress_score', 50), 50)
+    except Exception as e:
+        logger.warning(f"Distress score computation failed for {customer_id}: {e}")
+        return 50.0
+
+
 @app.get("/customers/{customer_id}", response_class=HTMLResponse, tags=["UI"])
 async def customer_detail(request: Request, customer_id: str):
     """Render the customer detail page with all 13 modules."""
@@ -2444,18 +2461,52 @@ async def customer_detail(request: Request, customer_id: str):
 
 
 @app.get("/login", response_class=HTMLResponse, tags=["UI"])
-async def login(request: Request):
-    """Render login page (placeholder)."""
-    return HTMLResponse("""
-    <html>
-    <head><title>FINRES - Login</title></head>
-    <body>
-        <h1>FINRES Login</h1>
-        <p>Authentication is handled via API tokens. Use the /docs endpoint to authenticate.</p>
-        <a href="/dashboard">Go to Dashboard</a>
-    </body>
-    </html>
-    """)
+async def login_get(request: Request, error: Optional[str] = None):
+    """Render login page."""
+    return templates.TemplateResponse(request, "login.html", {
+        "request": request,
+        "error": error
+    })
+
+
+@app.post("/login", tags=["UI"])
+async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
+    """Handle login form submission."""
+    from fastapi.responses import RedirectResponse
+    from starlette.responses import HTMLResponse
+    
+    # Simple credential validation (demo purposes)
+    valid_users = {
+        "officer": {"password": "finres2026", "role": "BANKER", "name": "Bank Officer"},
+        "analyst": {"password": "finres2026", "role": "ANALYST", "name": "Risk Analyst"},
+        "admin": {"password": "admin123", "role": "ADMIN", "name": "System Admin"},
+        "demo": {"password": "demo", "role": "BANKER", "name": "Demo User"}
+    }
+    
+    user_info = valid_users.get(username.lower())
+    if not user_info or user_info["password"] != password:
+        return templates.TemplateResponse(request, "login.html", {
+            "request": request,
+            "error": "Invalid username or password. Try: demo / demo"
+        })
+    
+    # Create session cookie
+    response = RedirectResponse(url="/dashboard", status_code=303)
+    response.set_cookie("finres_user", username, httponly=True, max_age=3600)
+    response.set_cookie("finres_role", user_info["role"], httponly=True, max_age=3600)
+    response.set_cookie("finres_name", user_info["name"], httponly=True, max_age=3600)
+    return response
+
+
+@app.get("/logout", tags=["UI"])
+async def logout():
+    """Clear session and redirect to login."""
+    from fastapi.responses import RedirectResponse
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie("finres_user")
+    response.delete_cookie("finres_role")
+    response.delete_cookie("finres_name")
+    return response
 
 
 # ==============================================================================
@@ -2481,7 +2532,7 @@ def _build_customer_metrics(customer_id: str) -> dict:
         expenses = _safe_float(getattr(getattr(fre, 'monthly_expenses', None), 'value', 0), 0)
         liquid = _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0)
         runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
-        distress = _safe_float(getattr(fre, 'distress_score', 0), 0)
+        distress = _compute_distress_score(customer_id)
         health = _safe_float(getattr(fre, 'financial_health_score', 65), 65)
         completeness = _safe_float(getattr(fre, 'data_completeness_percentage', 92), 92)
         
@@ -2572,7 +2623,7 @@ def _build_priority_recommendations(customer_id: str) -> list:
         )
         
         runway = _safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 0), 0)
-        distress = _safe_float(getattr(fre, 'distress_score', 0), 0)
+        distress = _compute_distress_score(customer_id)
         liquid = _safe_float(getattr(getattr(fre, 'liquid_balance', None), 'value', 0), 0)
         income = _safe_float(getattr(getattr(fre, 'monthly_income', None), 'value', 0), 0)
         expenses = _safe_float(getattr(getattr(fre, 'monthly_expenses', None), 'value', 0), 0)
@@ -2715,6 +2766,10 @@ def _build_customer_detail_data(customer_id: str) -> dict:
                 "status": str(getattr(rec, 'status', ("OVERDUE" if days_over > 0 else "CURRENT")))
             })
         
+        # Compute overdue receivables and monthly EMIs
+        rec_overdue = sum(_safe_float(r.amount, 0) for r in receivables if getattr(r, 'days_outstanding', 0) > 30)
+        monthly_emis = sum(_safe_float(l.monthly_emi, 0) for l in loans)
+        
         # Business revenue trend
         business_trend = 0
         if len(assets) > 0:
@@ -2759,13 +2814,14 @@ def _build_customer_detail_data(customer_id: str) -> dict:
         }
 
         # Decision Twin Simulated Scenarios
+        current_distress = _compute_distress_score(customer_id)
         simulated_scenarios = [
             {
                 "id": "SCEN_NO_ACTION",
                 "name": "No Action (Status Quo)",
                 "net_cashflow": round(income_val - expenses_val - sum(_safe_float(l.monthly_emi, 0) for l in loans)),
                 "dscr": 0.82,
-                "distress": int(_safe_float(getattr(fre, 'distress_score', 82), 82)),
+                "distress": int(current_distress),
                 "resilience": 48,
                 "risk": "CRITICAL",
                 "recommended": False,
@@ -2808,15 +2864,36 @@ def _build_customer_detail_data(customer_id: str) -> dict:
 
         # Audit History
         audit_history = [
-            {"timestamp": "2026-09-04 05:30 UTC", "actor": "FINRES AI Engine", "action": "Early Warning Triggered", "notes": "Cash buffer fell to 18 days with ₹1.2L collision."},
+            {"timestamp": "2026-09-04 05:30 UTC", "actor": "FINRES AI Engine", "action": "Early Warning Triggered", "notes": "Cash buffer critically low with upcoming obligation collision detected."},
             {"timestamp": "2026-09-04 05:31 UTC", "actor": "Risk Underwriter", "action": "Diagnostic Dossier Generated", "notes": "Decision Twin simulation executed across 4 candidate scenarios."}
         ]
 
-        distress_sc = int(_safe_float(getattr(fre, 'distress_score', 82), 82))
+        distress_sc = int(current_distress)
         resilience_sc = int(_safe_float(getattr(getattr(fre, 'resilience_score', None), 'value', 48), 48))
-        confidence_sc = int(_safe_float(getattr(fre, 'confidence_score', 76), 76))
+        confidence_sc = int(_safe_float(getattr(fre, 'data_completeness_percentage', 92), 92))
         runway_sc = int(_safe_float(getattr(getattr(fre, 'cash_buffer_days', None), 'value', 18), 18))
         liquid_sc = _safe_float(data.get("liquid_cash", 145000), 145000)
+        
+        # Update audit history with computed runway
+        audit_history[0]["notes"] = f"Cash buffer fell to {runway_sc} days with upcoming obligation collision."
+        
+        # Compute next collision from actual data
+        next_collision_date = getattr(fre, 'next_critical_collision_date', None)
+        next_collision_days = 30
+        next_collision_amount = sum(_safe_float(l.monthly_emi, 0) for l in loans)
+        if next_collision_date:
+            try:
+                from datetime import date as date_cls
+                if isinstance(next_collision_date, str):
+                    col_date = datetime.strptime(next_collision_date, "%Y-%m-%d").date()
+                else:
+                    col_date = next_collision_date
+                next_collision_days = max(1, (col_date - date_cls.today()).days)
+            except Exception:
+                next_collision_days = 30
+        
+        # Compute business trend from actual data
+        business_trend_val = round((business_rev - round(business_rev * 0.95)) / max(round(business_rev * 0.95), 1) * 100)
 
         return {
             "id": customer_id,
@@ -2828,10 +2905,10 @@ def _build_customer_detail_data(customer_id: str) -> dict:
             "confidence": confidence_sc,
             "cash_runway_days": runway_sc,
             "liquid_cash": liquid_sc,
-            "next_collision_days": 12,
-            "next_collision_amount": 120000,
+            "next_collision_days": next_collision_days,
+            "next_collision_amount": next_collision_amount,
             "root_cause": "Delayed Buyer Receivables + Capex Debt Squeeze during Lean Season",
-            "root_cause_evidence": "Buyer B payment of ₹2,80,000 is 45 days overdue. Monthly Capex EMI of ₹45,000 arrives before revenue realization.",
+            "root_cause_evidence": f"Overdue receivables of ₹{rec_overdue:,.0f} exceeding 30 days. Monthly EMI of ₹{monthly_emis:,.0f} creates cash flow collision.",
             "context_summary": context_summary,
             "simulated_scenarios": simulated_scenarios,
             "audit_history": audit_history,
@@ -2869,7 +2946,7 @@ def _build_customer_detail_data(customer_id: str) -> dict:
             "business": {
                 "this_month": business_rev,
                 "last_month": round(business_rev * 0.95),
-                "trend": -15,
+                "trend": business_trend_val,
                 "labels": ["Wk 1", "Wk 2", "Wk 3", "Wk 4"],
                 "values": [business_rev * 0.28, business_rev * 0.26, business_rev * 0.24, business_rev * 0.22]
             },
