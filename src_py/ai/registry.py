@@ -83,7 +83,13 @@ class ModelRegistry:
         if not self._models:
             return {"error": "No models loaded", "score": 50, "probability": 0.5, "confidence": 0.3}
 
-        model_name = model_name or self.get_best_model_name()
+        X = features.reshape(1, -1) if features.ndim == 1 else features
+        if model_name is None:
+            if X.shape[1] <= 9:
+                model_name = "distress_random_forest" if "distress_random_forest" in self._models else "distress_logistic"
+            else:
+                model_name = self.get_best_model_name()
+
         model = self._models.get(model_name)
         if model is None:
             return {"error": f"Model '{model_name}' not found", "score": 50, "probability": 0.5}

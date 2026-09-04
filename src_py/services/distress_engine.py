@@ -79,9 +79,9 @@ class EarlyDistressDetectionService:
     @classmethod
     def _predict_ml(cls, features: np.ndarray) -> float:
         """Run ML prediction using the best available model."""
-        if cls._best_model_name in cls._ml_models:
+        if cls._ml_models:
             from src_py.ai.registry import predict_distress
-            result = predict_distress(features, cls._best_model_name)
+            result = predict_distress(features)
             return result.get("probability", 0.5)
         elif cls._ml_model is not None:
             scaler = cls._scaler
