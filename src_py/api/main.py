@@ -166,6 +166,19 @@ from src_py.data.sample_data import SAMPLE_CUSTOMERS_DATA
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("finres-api")
 
+# Structured JSON logging for production
+from src_py.observability.logging import setup_logging, get_logger as get_json_logger
+setup_logging(os.environ.get("LOG_LEVEL", "INFO"))
+structured_logger = get_json_logger("finres-api")
+
+# Initialize database on startup
+from src_py.db.engine import init_db as _init_db, get_db as _get_db_session
+_init_db()
+
+# Request context middleware for request IDs, timing, metrics
+from src_py.observability.middleware import RequestContextMiddleware
+from src_py.observability.metrics import metrics as _metrics, set_active_customers
+
 app = FastAPI(
     title="FINRES Financial Distress Prevention & Decision Support Platform",
     description="Institutional Scheduled Commercial Bank (SCB) early warning, distress prevention, and intervention engine.",
@@ -174,6 +187,8 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None
 )
+
+app.add_middleware(RequestContextMiddleware)
 
 # Templates setup for UI rendering
 # Disable Jinja2 template cache to avoid unhashable type errors
@@ -196,7 +211,7 @@ app.add_middleware(
 
 
 # UI Authentication Helper
-UI_EXEMPT_PATHS = {"/login", "/logout", "/health", "/api"}
+UI_EXEMPT_PATHS = {"/login", "/logout", "/health", "/api", "/metrics"}
 
 def _get_ui_user(request: Request) -> Optional[Dict[str, str]]:
     """Get current user from session cookies. Returns None if not authenticated."""
@@ -250,6 +265,19 @@ async def health_check():
         errors=[],
         meta=APIResponseMeta(execution_time_ms=0.0)
     )
+
+
+@app.get("/metrics", tags=["Observability"])
+async def metrics_endpoint():
+    """Prometheus-compatible metrics endpoint."""
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(content=_metrics.export_prometheus(), media_type="text/plain")
+
+
+@app.get("/api/v1/metrics/summary", tags=["Observability"])
+async def metrics_summary():
+    """Human-readable metrics summary for monitoring dashboards."""
+    return _metrics.get_summary()
 
 
 

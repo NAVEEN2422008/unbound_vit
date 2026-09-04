@@ -1,0 +1,52 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+
+# ML artifacts (train fresh)
+src_py/ai/model_artifacts/*.joblib
+src_py/ai/model_artifacts/*.json
+!src_py/ai/model_artifacts/.gitkeep
+
+# Data
+src_py/ai/data/*.csv
+*.parquet
+
+# Node
+node_modules/
+
+# Environment
+.env.local
+.env.production
